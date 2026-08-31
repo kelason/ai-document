@@ -271,6 +271,7 @@ export default function DocumentWorkspace({ params }: PageProps) {
       }
       const doc = await res.json();
       setDocContent(doc.content);
+      setContentRevision((r) => r + 1); // Force Editor to re-sync HTML
       setDocTitle(doc.title);
       setDocHistory(doc.history ?? []);
       setSaveStatus("saved");

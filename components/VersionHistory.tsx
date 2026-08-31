@@ -54,18 +54,19 @@ export default function VersionHistory({ history, onRestore }: VersionHistoryPro
                     : "bg-zinc-50/50 border-zinc-100 dark:bg-zinc-800/20 dark:border-zinc-800/60"
                 }`}
               >
-                {index === 0 && (
-                  <span className="absolute top-2.5 right-3 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100/50 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded">
-                    Current
-                  </span>
-                )}
-                
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                    <Calendar size={12} className="text-zinc-400" />
-                    <span>{formattedDate}</span>
-                    <span className="text-zinc-300 dark:text-zinc-700">•</span>
-                    <span className="text-[11px] text-zinc-500">{formattedTime}</span>
+                  <div className="flex items-start justify-between gap-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Calendar size={12} className="text-zinc-400 shrink-0" />
+                      <span>{formattedDate}</span>
+                      <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">•</span>
+                      <span className="text-[11px] text-zinc-500">{formattedTime}</span>
+                    </div>
+                    {index === 0 && (
+                      <span className="shrink-0 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100/50 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded">
+                        Current
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
