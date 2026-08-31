@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f4f5; /* zinc-100 */
+  --foreground: #18181b; /* zinc-900 */
+  --paper-bg: #ffffff;
+  --paper-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05), 0 0 0 1px rgb(0 0 0 / 0.05);
+  --border-color: #e4e4e7; /* zinc-200 */
 }
 
 @theme inline {
@@ -14,13 +17,196 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #09090b; /* zinc-950 */
+    --foreground: #f4f4f5; /* zinc-100 */
+    --paper-bg: #18181b; /* zinc-900 */
+    --paper-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3), 0 0 0 1px rgb(255 255 255 / 0.05);
+    --border-color: #27272a; /* zinc-800 */
   }
 }
 
+/* Base custom resets */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Rich Text Editor Content Styling */
+.prose-editor {
+  outline: none;
+  min-height: 750px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  font-size: 15px;
+  color: var(--foreground);
+}
+
+.prose-editor h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  color: inherit;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.prose-editor h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+  color: inherit;
+}
+
+.prose-editor h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: inherit;
+}
+
+.prose-editor p {
+  margin-bottom: 1rem;
+}
+
+.prose-editor ul {
+  list-style-type: disc;
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.prose-editor ol {
+  list-style-type: decimal;
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.prose-editor li {
+  margin-bottom: 0.25rem;
+}
+
+.prose-editor hr {
+  border: 0;
+  border-top: 2px solid var(--border-color);
+  margin: 1.5rem 0;
+}
+
+.prose-editor table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.prose-editor th,
+.prose-editor td {
+  border: 1px solid var(--border-color);
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.prose-editor th {
+  background-color: rgba(0, 0, 0, 0.03);
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .prose-editor th {
+    background-color: rgba(255, 255, 255, 0.03);
+  }
+}
+
+.prose-editor code {
+  font-family: var(--font-geist-mono);
+  background-color: rgba(0, 0, 0, 0.06);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+
+@media (prefers-color-scheme: dark) {
+  .prose-editor code {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.prose-editor pre {
+  background-color: rgba(0, 0, 0, 0.04);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .prose-editor pre {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
+}
+
+/* Custom Collaborative Presence Cursors */
+.remote-cursor {
+  position: absolute;
+  pointer-events: none;
+  display: inline-block;
+  width: 2px;
+  height: 1.25em;
+  z-index: 10;
+  animation: cursor-blink 1s steps(2, start) infinite;
+  transform: translateY(0.1em);
+}
+
+.remote-cursor-label {
+  position: absolute;
+  top: -1.4em;
+  left: -2px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+
+@keyframes cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* Document Page Wrapper Styling */
+.doc-page-container {
+  box-shadow: var(--paper-shadow);
+  background-color: var(--paper-bg);
+  border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
 }

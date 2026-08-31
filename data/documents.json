@@ -1,0 +1,122 @@
+[
+  {
+    "id": "31hbpel9x",
+    "title": "Untitled Document",
+    "content": "sdasdasda",
+    "createdAt": "2026-08-31T03:16:14.974Z",
+    "updatedAt": "2026-08-31T03:26:38.508Z",
+    "owner": "Alice Cooper",
+    "history": [
+      {
+        "id": "5jtbhkapb",
+        "title": "Untitled Document",
+        "content": "",
+        "updatedAt": "2026-08-31T03:16:14.974Z",
+        "updatedBy": "Alice Cooper"
+      },
+      {
+        "id": "ppk9tkjj3",
+        "title": "Untitled Document",
+        "content": "sdasdasda",
+        "updatedAt": "2026-08-31T03:26:38.508Z",
+        "updatedBy": "Alice Cooper"
+      }
+    ]
+  },
+  {
+    "id": "eqda4rzmq",
+    "title": "Getting Started with Antigravity Docs",
+    "content": "<h1>Welcome to Antigravity Docs!</h1><p>This is a lightweight collaborative document editor inspired by Google Docs.</p><p>Here is what you can do in this app:</p><ul><li><b>Rich Text Formatting</b>: Use the toolbar at the top to format text (bold, italic, underline), set headings, and create bulleted/numbered lists.</li><li><b>Document Outline</b>: Check out the outline panel on the right! It automatically detects headers and lists them for easy navigation.</li><li><b>Collaborative Presences</b>: Switch your active user in the top right to see presence in action, or click \"Simulate Co-editor\" to spawn Bob, who will start typing on the document in real-time.</li><li><b>Version History</b>: Tweak this document, save, and check the Version History sidebar to restore older drafts!</li></ul><p>Feel free to edit this document or create a brand-new one!</p>",
+    "createdAt": "2026-08-31T03:16:11.835Z",
+    "updatedAt": "2026-08-31T03:16:11.835Z",
+    "owner": "System",
+    "history": [
+      {
+        "id": "51r2wxp0o",
+        "title": "Getting Started with Antigravity Docs",
+        "content": "<h1>Welcome to Antigravity Docs!</h1><p>This is a lightweight collaborative document editor inspired by Google Docs.</p><p>Here is what you can do in this app:</p><ul><li><b>Rich Text Formatting</b>: Use the toolbar at the top to format text (bold, italic, underline), set headings, and create bulleted/numbered lists.</li><li><b>Document Outline</b>: Check out the outline panel on the right! It automatically detects headers and lists them for easy navigation.</li><li><b>Collaborative Presences</b>: Switch your active user in the top right to see presence in action, or click \"Simulate Co-editor\" to spawn Bob, who will start typing on the document in real-time.</li><li><b>Version History</b>: Tweak this document, save, and check the Version History sidebar to restore older drafts!</li></ul><p>Feel free to edit this document or create a brand-new one!</p>",
+        "updatedAt": "2026-08-31T03:16:11.835Z",
+        "updatedBy": "System"
+      }
+    ]
+  },
+  {
+    "id": "govlypl4a",
+    "title": "Getting Started with Antigravity Docs",
+    "content": "<h1>Welcome to Antigravity Docs!</h1><p>This is a lightweight collaborative document editor inspired by Google Docs.</p><p>Here is what you can do in this app:</p><ul><li><b>Rich Text Formatting</b>: Use the toolbar at the top to format text (bold, italic, underline), set headings, and create bulleted/numbered lists.</li><li><b>Document Outline</b>: Check out the outline panel on the right! It automatically detects headers and lists them for easy navigation.</li><li><b>Collaborative Presences</b>: Switch your active user in the top right to see presence in action, or click \"Simulate Co-editor\" to spawn Bob, who will start typing on the document in real-time.</li><li><b>Version History</b>: Tweak this document, save, and check the Version History sidebar to restore older drafts!</li></ul><p>Feel free to edit this document or create a brand-new one!</p>",
+    "createdAt": "2026-08-31T03:16:11.354Z",
+    "updatedAt": "2026-08-31T03:16:11.354Z",
+    "owner": "System",
+    "history": [
+      {
+        "id": "hnc4pw6xr",
+        "title": "Getting Started with Antigravity Docs",
+        "content": "<h1>Welcome to Antigravity Docs!</h1><p>This is a lightweight collaborative document editor inspired by Google Docs.</p><p>Here is what you can do in this app:</p><ul><li><b>Rich Text Formatting</b>: Use the toolbar at the top to format text (bold, italic, underline), set headings, and create bulleted/numbered lists.</li><li><b>Document Outline</b>: Check out the outline panel on the right! It automatically detects headers and lists them for easy navigation.</li><li><b>Collaborative Presences</b>: Switch your active user in the top right to see presence in action, or click \"Simulate Co-editor\" to spawn Bob, who will start typing on the document in real-time.</li><li><b>Version History</b>: Tweak this document, save, and check the Version History sidebar to restore older drafts!</li></ul><p>Feel free to edit this document or create a brand-new one!</p>",
+        "updatedAt": "2026-08-31T03:16:11.354Z",
+        "updatedBy": "System"
+      }
+    ]
+  },
+  {
+    "id": "3xheczccy",
+    "title": "Untitled Document",
+    "content": "<br>",
+    "createdAt": "2026-08-31T03:02:54.145Z",
+    "updatedAt": "2026-08-31T03:04:54.150Z",
+    "owner": "Alice Cooper",
+    "history": [
+      {
+        "id": "jng6mbap0",
+        "title": "Untitled Document",
+        "content": "",
+        "updatedAt": "2026-08-31T03:02:54.145Z",
+        "updatedBy": "Alice Cooper"
+      },
+      {
+        "id": "68se8o9e8",
+        "title": "Untitled Document",
+        "content": "sample <b>asdasdasdas&nbsp;</b>",
+        "updatedAt": "2026-08-31T03:03:17.164Z",
+        "updatedBy": "Alice Cooper"
+      },
+      {
+        "id": "ku1t0k47m",
+        "title": "Untitled Document",
+        "content": "sample <b>asdasdasdas&nbsp;</b> Hello! I am Bob, your AI co-editor. I am typing live on this document to showcase multi-user real-time collaboration.&nbsp;",
+        "updatedAt": "2026-08-31T03:03:44.337Z",
+        "updatedBy": "Alice Cooper"
+      },
+      {
+        "id": "6js4tcmcb",
+        "title": "Untitled Document",
+        "content": "<br>",
+        "updatedAt": "2026-08-31T03:04:54.150Z",
+        "updatedBy": "Alice Cooper"
+      }
+    ]
+  },
+  {
+    "id": "thdtxklyu",
+    "title": "Getting Started with Antigravity Docs",
+    "content": "<br>",
+    "createdAt": "2026-08-31T03:01:21.773Z",
+    "updatedAt": "2026-08-31T03:04:22.298Z",
+    "owner": "System",
+    "history": [
+      {
+        "id": "1ii56ltky",
+        "title": "Getting Started with Antigravity Docs",
+        "content": "<h1>Welcome to Antigravity Docs!</h1><p>This is a lightweight collaborative document editor inspired by Google Docs.</p><p>Here is what you can do in this app:</p><ul><li><b>Rich Text Formatting</b>: Use the toolbar at the top to format text (bold, italic, underline), set headings, and create bulleted/numbered lists.</li><li><b>Document Outline</b>: Check out the outline panel on the right! It automatically detects headers and lists them for easy navigation.</li><li><b>Collaborative Presences</b>: Switch your active user in the top right to see presence in action, or click \"Simulate Co-editor\" to spawn Bob, who will start typing on the document in real-time.</li><li><b>Version History</b>: Tweak this document, save, and check the Version History sidebar to restore older drafts!</li></ul><p>Feel free to edit this document or create a brand-new one!</p>",
+        "updatedAt": "2026-08-31T03:01:21.773Z",
+        "updatedBy": "System"
+      },
+      {
+        "id": "fpvmq951o",
+        "title": "Getting Started with Antigravity Docs",
+        "content": "<br>",
+        "updatedAt": "2026-08-31T03:04:22.298Z",
+        "updatedBy": "Alice Cooper"
+      }
+    ]
+  }
+]
