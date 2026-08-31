@@ -44,7 +44,8 @@ export interface DocumentAttachment {
   uploadedAt: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const isVercel = !!process.env.VERCEL;
+const DATA_DIR = isVercel ? path.join("/tmp", "data") : path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "documents.json");
 
 // Supabase configuration
@@ -66,27 +67,37 @@ if (isSupabaseEnabled) {
 
 // Local JSON file db helpers
 function ensureDb() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2), "utf-8");
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(DB_FILE)) {
+      fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2), "utf-8");
+    }
+  } catch (err) {
+    console.error("ensureDb failed (read-only filesystem?):", err);
   }
 }
 
+let memoryCache: Document[] | null = null;
+
 function getLocalDocuments(): Document[] {
   ensureDb();
+  if (memoryCache) return memoryCache;
   try {
     const data = fs.readFileSync(DB_FILE, "utf-8");
-    return JSON.parse(data) as Document[];
+    memoryCache = JSON.parse(data) as Document[];
+    return memoryCache;
   } catch (error) {
     console.error("Failed to read local database:", error);
-    return [];
+    memoryCache = [];
+    return memoryCache;
   }
 }
 
 function saveLocalDocuments(docs: Document[]) {
   ensureDb();
+  memoryCache = docs;
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(docs, null, 2), "utf-8");
   } catch (error) {
