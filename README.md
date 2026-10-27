@@ -2,7 +2,9 @@
 
 A modern, responsive document editor and workspace built with Next.js, React, and Supabase.
 
-**Live Demo**: [http://ai-document-black.vercel.app/documents/90al206vf](http://ai-document-black.vercel.app/documents/90al206vf)
+**Live Demo**: [Open the document dashboard](https://ai-document-black.vercel.app/)
+
+Choose an existing document or create a blank document from the dashboard. The original demo document is no longer available; its old link redirects to the dashboard.
 
 ## Features
 
