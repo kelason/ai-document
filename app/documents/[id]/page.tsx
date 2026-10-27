@@ -82,6 +82,7 @@ export default function DocumentWorkspace({ params }: PageProps) {
   const [showShareModal,     setShowShareModal]     = useState(false);
   const [showUploadModal,    setShowUploadModal]    = useState(false);
   const [isLoading,          setIsLoading]          = useState(true);
+  const [loadError, setLoadError] = useState<"not-found" | "unavailable" | null>(null);
 
   // Collaboration
   const [remoteUsers, setRemoteUsers] = useState<ActiveUser[]>([]);
@@ -111,12 +112,12 @@ export default function DocumentWorkspace({ params }: PageProps) {
 
   // ── Fetch document ─────────────────────────────────────────────────────────
   const fetchDoc = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/documents/${id}`);
       if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: "Unknown" }));
-        addToast("error", `Document load failed: ${error}`);
-        setDocTitle("Document Not Found");
+        setLoadError(res.status === 404 ? "not-found" : "unavailable");
         return;
       }
       const doc = await res.json();
@@ -126,11 +127,11 @@ export default function DocumentWorkspace({ params }: PageProps) {
       setDocShares(doc.shares ?? []);
       setOwner(doc.owner);
     } catch {
-      addToast("error", "Network error — could not load document.");
+      setLoadError("unavailable");
     } finally {
       setIsLoading(false);
     }
-  }, [id, addToast]);
+  }, [id]);
 
   useEffect(() => { fetchDoc(); }, [fetchDoc]);
 
@@ -219,6 +220,7 @@ export default function DocumentWorkspace({ params }: PageProps) {
 
   // ── Presence heartbeat ─────────────────────────────────────────────────────
   useEffect(() => {
+    if (isLoading || loadError) return;
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/documents/${id}/presence`, {
@@ -242,10 +244,11 @@ export default function DocumentWorkspace({ params }: PageProps) {
       } catch { /* silent — presence is best-effort */ }
     }, PRESENCE_HEARTBEAT_MS);
     return () => clearInterval(interval);
-  }, [id, activeUser, localCursor, isSimulating]);
+  }, [id, activeUser, localCursor, isSimulating, isLoading, loadError]);
 
   // Cleanup presence on unmount
   useEffect(() => {
+    if (isLoading || loadError) return;
     return () => {
       fetch(`/api/documents/${id}/presence`, {
         method: "POST",
@@ -253,7 +256,7 @@ export default function DocumentWorkspace({ params }: PageProps) {
         body: JSON.stringify({ userId: activeUser.id, active: false }),
       }).catch(() => {});
     };
-  }, [id, activeUser]);
+  }, [id, activeUser, isLoading, loadError]);
 
   // ── Version restore ────────────────────────────────────────────────────────
   const handleRestoreVersion = async (versionId: string) => {
@@ -342,6 +345,31 @@ export default function DocumentWorkspace({ params }: PageProps) {
     return { words, chars: text.length, time: Math.ceil(words / READING_WPM) };
   };
   const stats = getDocStats();
+
+  if (loadError) {
+    const notFound = loadError === "not-found";
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4">
+        <div className="max-w-md text-center space-y-6">
+          <FileText size={48} className="mx-auto text-zinc-400" />
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+            {notFound ? "Document not found" : "Could not load document"}
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {notFound
+              ? "This document is no longer available, or the link is incorrect. Open the dashboard to choose or create a document."
+              : "The document could not be loaded. Check your connection and try again."}
+          </p>
+          <div className="flex items-center justify-center gap-4">
+            <Link href="/" className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+              Back to my documents
+            </Link>
+            {!notFound && <Button onClick={() => void fetchDoc()}>Try again</Button>}
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   // ── Access Denied page ─────────────────────────────────────────────────────
   // Shown once the document has loaded but the active user has no access at all.
