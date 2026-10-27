@@ -1,0 +1,61 @@
+name: Implementation checks
+on:
+  pull_request:
+  push:
+    branches: [feat/ai-docs-accounts]
+permissions:
+  contents: read
+concurrency:
+  group: implementation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.22.1
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run typecheck
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.22.1
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.122.0
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: supabase start
+      - name: Export isolated test credentials
+        run: |
+          supabase status -o json > "$RUNNER_TEMP/supabase-local.json"
+          python3 - <<'PYTHON'
+          import json, os
+          from pathlib import Path
+          d=json.loads(Path(os.environ['RUNNER_TEMP']+'/supabase-local.json').read_text())
+          mapping={'SUPABASE_TEST_URL':'API_URL','NEXT_PUBLIC_SUPABASE_URL':'API_URL','SUPABASE_TEST_ANON_KEY':'ANON_KEY','NEXT_PUBLIC_SUPABASE_ANON_KEY':'ANON_KEY','SUPABASE_TEST_SERVICE_ROLE_KEY':'SERVICE_ROLE_KEY','SUPABASE_SERVICE_ROLE_KEY':'SERVICE_ROLE_KEY'}
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              for name,key in mapping.items():
+                  value=d[key]
+                  if 'KEY' in name: print('::add-mask::'+value)
+                  f.write(name+'='+value+'\n')
+          PYTHON
+      - run: supabase test db
+      - run: npm run test:integration
+        env:
+          RUN_MIGRATION_DB_TESTS: '1'
+          RUN_RATE_LIMIT_DB_TESTS: '1'
+          RATE_LIMIT_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          MIGRATION_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      - if: always()
+        run: supabase stop --no-backup

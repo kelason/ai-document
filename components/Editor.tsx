@@ -1,5 +1,6 @@
 "use client";
 
+import { sanitizeEditorHtml } from "@/lib/security/html-client";
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import {
   Bold,
@@ -92,7 +93,7 @@ export default function Editor({
     if (editorRef.current && (!hasInitialized || isNewRevision)) {
       if (!hasInitialized && !initialContent && initialContent !== "") return;
       
-      editorRef.current.innerHTML = initialContent;
+      editorRef.current.innerHTML = sanitizeEditorHtml(initialContent);
       setHasInitialized(true);
       
       if (isNewRevision && contentRevision !== undefined) {
@@ -191,8 +192,9 @@ export default function Editor({
   // Intercept Paste events to only paste plain text or format cleanly
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const text = e.clipboardData.getData("text/plain");
-    document.execCommand("insertText", false, text);
+    const html = e.clipboardData.getData("text/html");
+    if (html) document.execCommand("insertHTML", false, sanitizeEditorHtml(html));
+    else document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
     handleEditorInput();
   };
 
@@ -201,7 +203,9 @@ export default function Editor({
     const channel = new BroadcastChannel(`doc-sync-${documentId}`);
     
     const handleChannelMessage = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== "object") return;
       const { type, content, sender } = event.data;
+      if (typeof content !== "string" || content.length > 1024 * 1024) return;
       if (sender !== activeUser.id) {
         if (type === "content-update" && editorRef.current && editorRef.current.innerHTML !== content) {
           // Store selection before update
@@ -211,7 +215,7 @@ export default function Editor({
             range = selection.getRangeAt(0).cloneRange();
           }
 
-          editorRef.current.innerHTML = content;
+          editorRef.current.innerHTML = sanitizeEditorHtml(content);
 
           // Restore selection if possible
           if (range && selection) {
@@ -275,7 +279,7 @@ export default function Editor({
         const range = selection.getRangeAt(0);
         range.deleteContents();
         const el = document.createElement("div");
-        el.innerHTML = tableHTML.trim();
+        el.innerHTML = sanitizeEditorHtml(tableHTML.trim());
         const frag = document.createDocumentFragment();
         let node;
         while ((node = el.firstChild)) {
@@ -285,7 +289,7 @@ export default function Editor({
         // Move selection cursor right after the table
         range.collapse(false);
       } else {
-        editorRef.current.innerHTML += tableHTML;
+        editorRef.current.innerHTML = sanitizeEditorHtml(editorRef.current.innerHTML + tableHTML);
       }
       handleEditorInput();
     }
@@ -564,6 +568,7 @@ export default function Editor({
             suppressContentEditableWarning
             onInput={readOnly ? undefined : handleEditorInput}
             onPaste={readOnly ? undefined : handlePaste}
+            onDrop={(event) => event.preventDefault()}
             onSelect={handleSelectionChange}
             onKeyUp={readOnly ? undefined : handleEditorClickOrKeyUp}
             onMouseDown={readOnly ? undefined : handleEditorClickOrKeyUp}
