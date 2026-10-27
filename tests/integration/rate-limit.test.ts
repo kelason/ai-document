@@ -54,6 +54,29 @@ describe.skipIf(!enabled)('durable PostgreSQL request limits (isolated local Sup
     expect(await sql(`SELECT count(*) FROM request_security.rate_limits WHERE key_hash = '${old}';`)).toBe('0');
     expect(await sql(`SELECT count(*) FROM request_security.rate_limits WHERE key_hash = '${current}';`)).toBe('1');
   });
+  it('uses an expiry index range for the actual scheduled retention statement', async () => {
+    const command = await sql(`SELECT command FROM cron.job WHERE jobname = 'ai-docs-request-limit-retention';`);
+    expect(command).not.toBe('');
+    // Exercise the registered production command, not a copy of its predicate.
+    // A volatile clock expression forces a full scan even with this selective
+    // retained-state fixture; a stable cutoff permits the expiry index range.
+    const explained = await sql(`BEGIN;
+      INSERT INTO request_security.rate_limits(key_hash,bucket,used,window_ends_at)
+      SELECT md5('retention-plan-' || n::text) || md5('other-' || n::text), 'presence', 1,
+        statement_timestamp() + interval '1 hour' FROM generate_series(1,6000) n;
+      INSERT INTO request_security.rate_limits(key_hash,bucket,used,window_ends_at)
+      VALUES ('${key()}', 'presence', 1, statement_timestamp() - interval '25 hours');
+      ANALYZE request_security.rate_limits;
+      EXPLAIN (ANALYZE, FORMAT JSON) ${command};
+      ROLLBACK;`);
+    const jsonStart = explained.indexOf('['); const jsonEnd = explained.lastIndexOf(']');
+    const plan = JSON.parse(explained.slice(jsonStart, jsonEnd + 1))[0].Plan;
+    function nodes(node: Record<string, unknown>): Record<string, unknown>[] {
+      return [node, ...((node.Plans ?? []) as Record<string, unknown>[]).flatMap(nodes)];
+    }
+    expect(nodes(plan).some((node) => node['Index Name'] === 'rate_limits_expiry_idx' && typeof node['Index Cond'] === 'string')).toBe(true);
+    expect(nodes(plan).some((node) => node['Node Type'] === 'Seq Scan' && node['Relation Name'] === 'rate_limits')).toBe(false);
+  });
   it('enforces separate upload, session, mutation, and presence budgets', async () => {
     for (const [bucket, count] of [['session', 20], ['upload', 10], ['mutation', 120], ['presence', 120]] as const) {
       const id = key();

@@ -1,0 +1,33 @@
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createServerSupabaseClient } from '../../../lib/supabase/server';
+import { verifiedUserFromClient } from '../../../lib/auth/context';
+import { setSelectedMode } from '../../../lib/auth/mode';
+import { safeReturnPath } from '../../../lib/auth/return-path';
+import { applicationOrigin, preAuthCookieName } from '../../../lib/security/csrf';
+import { hashLimitKey, requireLimit, trustedClientIp } from '../../../lib/security/rate-limit';
+import { toErrorResponse } from '../../../lib/http/errors';
+
+export async function GET(request: Request) {
+  try {
+    await requireLimit(hashLimitKey('auth-ip', trustedClientIp(request)), 'auth');
+    const url = new URL(request.url);
+    const code = url.searchParams.get('code');
+    const client = await createServerSupabaseClient({ writable: true });
+    if (!code || code.length > 4096 || url.searchParams.has('error')) return redirect('/auth?error=callback_invalid');
+    const result = await client.auth.exchangeCodeForSession(code);
+    if (result.error) return redirect('/auth?error=callback_invalid');
+    if (!await verifiedUserFromClient(client)) {
+      await client.auth.signOut({ scope: 'local' });
+      return redirect('/auth?error=verification_required');
+    }
+    await setSelectedMode('user');
+    (await cookies()).set(preAuthCookieName(), '', { path: '/', maxAge: 0, httpOnly: true, sameSite: 'strict', secure: applicationOrigin().startsWith('https:') });
+    return redirect(safeReturnPath(url.searchParams.get('next')));
+  } catch (error) { const response = toErrorResponse(error); response.headers.set('Cache-Control', 'no-store'); return response; }
+}
+function redirect(path: string) {
+  const response = NextResponse.redirect(new URL(path, applicationOrigin()), 303);
+  response.headers.set('Cache-Control', 'private, no-store'); response.headers.set('Referrer-Policy', 'no-referrer'); response.headers.set('Vary', 'Cookie');
+  return response;
+}

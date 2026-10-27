@@ -39,9 +39,10 @@ BEGIN
   END CASE;
 
   -- Request-time backstop in addition to the cron job. Never keeps expired
-  -- keys alive by sliding expiry on denied attempts.
+  -- keys alive by sliding expiry on denied attempts. A stable statement cutoff
+  -- allows an expiry-index range rather than evaluating a volatile clock per row.
   DELETE FROM request_security.rate_limits
-    WHERE window_ends_at < pg_catalog.clock_timestamp() - interval '24 hours';
+    WHERE window_ends_at < pg_catalog.statement_timestamp() - interval '24 hours';
 
   -- Serialize by bucket/key, including the previously-absent-row case. Capture
   -- the database clock AFTER acquiring the lock so queued requests use current
@@ -69,7 +70,7 @@ BEGIN
   PERFORM cron.schedule(
     'ai-docs-request-limit-retention',
     '* * * * *',
-    $command$DELETE FROM request_security.rate_limits WHERE window_ends_at < clock_timestamp() - interval '24 hours'$command$
+    $command$DELETE FROM request_security.rate_limits WHERE window_ends_at < statement_timestamp() - interval '24 hours'$command$
   );
 END;
 $schedule$;
