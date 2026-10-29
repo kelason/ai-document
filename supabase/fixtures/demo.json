@@ -1,0 +1,28 @@
+{
+  "documents": [
+    {
+      "key": "alice-proposal",
+      "owner": "alice",
+      "title": "Community Garden Proposal",
+      "content": "<h1>Community Garden Proposal</h1><p>Fictional demo by Alice. Help the fictional Maple Lane community grow a shared garden.</p><h2>Plan</h2><ul><li>Build three raised beds.</li><li>Host a weekend planting workshop.</li></ul><table><tr><th>Item</th><th>Demo budget</th></tr><tr><td>Seeds</td><td>120</td></tr><tr><td>Tools</td><td>240</td></tr></table>",
+      "history": [{ "title": "Community Garden Proposal", "content": "<h1>Community Garden Proposal</h1><p>Fictional first draft: a shared space to grow herbs.</p>", "updatedBy": "Alice" }],
+      "shares": [{ "persona": "bob", "permission": "edit" }, { "persona": "charlie", "permission": "view" }]
+    },
+    {
+      "key": "bob-meeting",
+      "owner": "bob",
+      "title": "Garden Planning Meeting Notes",
+      "content": "<h1>Garden Planning Meeting Notes</h1><p>Fictional demo by Bob.</p><h2>Decisions</h2><ol><li>Choose accessible paths.</li><li>Start with herbs and leafy greens.</li></ol><p><strong>Next step:</strong> Alice drafts the volunteer schedule; Charlie reviews the watering plan.</p>",
+      "history": [{ "title": "Garden Planning Meeting Notes", "content": "<h1>Meeting Agenda</h1><p>Fictional agenda: layout, volunteers, and watering.</p>", "updatedBy": "Bob" }],
+      "shares": [{ "persona": "alice", "permission": "view" }, { "persona": "charlie", "permission": "edit" }]
+    },
+    {
+      "key": "charlie-specification",
+      "owner": "charlie",
+      "title": "Garden Watering Specification",
+      "content": "<h1>Garden Watering Specification</h1><p>Fictional demo by Charlie.</p><h2>Requirements</h2><ul><li>Use clearly labeled watering zones.</li><li>Record each watering session.</li><li>Provide an accessible manual control.</li></ul><p><em>Review this sample with the other demo personas.</em></p>",
+      "history": [{ "title": "Garden Watering Specification", "content": "<h1>Watering Specification</h1><p>Fictional draft: document the three watering zones.</p>", "updatedBy": "Charlie" }],
+      "shares": [{ "persona": "alice", "permission": "edit" }, { "persona": "bob", "permission": "view" }]
+    }
+  ]
+}

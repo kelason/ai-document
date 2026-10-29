@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  poweredByHeader: false,
+  serverExternalPackages: ["mammoth", "yauzl", "fast-xml-parser", "sanitize-html"],
+  outputFileTracingIncludes: {
+    "/api/documents/*/upload": [
+      "./node_modules/mammoth/**/*",
+      "./node_modules/yauzl/**/*",
+      "./node_modules/fast-xml-parser/**/*",
+    ],
+  },
   async redirects() {
     return [
       // The original README demo document is no longer in the database.

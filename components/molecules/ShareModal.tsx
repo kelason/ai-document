@@ -1,253 +1,29 @@
-// components/molecules/ShareModal.tsx
-// ─────────────────────────────────────
-// Molecule: Document sharing management modal.
-// Lets the document owner grant/revoke access for other simulated users.
-
-"use client";
-
-import React, { useState, useEffect, useCallback } from "react";
-import { X, UserPlus, Trash2, Crown, Share2 } from "lucide-react";
-import Button from "@/components/atoms/Button";
-import Badge from "@/components/atoms/Badge";
-import Avatar from "@/components/atoms/Avatar";
-import Spinner from "@/components/atoms/Spinner";
-import { useToast } from "@/components/atoms/ToastProvider";
-import { USER_PROFILES, SHARE_PERMISSIONS, type SharePermission } from "@/lib/constants";
-
-interface Share {
-  id: string;
-  userId: string;
-  permission: "view" | "edit";
-}
-
-interface ShareModalProps {
-  documentId: string;
-  documentTitle: string;
-  ownerName: string;           // name string of the owning user
-  activeUser: { id: string; name: string; avatar: string; color: string };
-  onClose: () => void;
-}
-
-export default function ShareModal({
-  documentId,
-  documentTitle,
-  ownerName,
-  activeUser,
-  onClose,
-}: ShareModalProps) {
-  const { addToast } = useToast();
-
-  const [shares, setShares]       = useState<Share[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving]   = useState(false);
-
-  // Per-user pending grant permission
-  const [selectedPermission, setSelectedPermission] = useState<SharePermission>(
-    SHARE_PERMISSIONS.VIEW
-  );
-
-  const isOwner = activeUser.name === ownerName;
-
-  // ── Fetch existing shares ───────────────────────────────────────────────────
-  const fetchShares = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/documents/${documentId}/shares`);
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: "Unknown error" }));
-        addToast("error", `Failed to load shares: ${error}`);
-        return;
-      }
-      const data = await res.json();
-      setShares(data);
-    } catch {
-      addToast("error", "Network error — could not load shares.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [documentId, addToast]);
-
-  useEffect(() => { fetchShares(); }, [fetchShares]);
-
-  // ── Grant access ────────────────────────────────────────────────────────────
-  const handleGrant = async (userId: string) => {
-    setIsSaving(true);
-    try {
-      const res = await fetch(`/api/documents/${documentId}/shares`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, permission: selectedPermission }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        addToast("error", body.error ?? "Failed to share document.");
-        return;
-      }
-      addToast("success", "Access granted!");
-      setShares((prev) => [...prev, body]);
-    } catch {
-      addToast("error", "Network error — share not saved.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // ── Revoke access ───────────────────────────────────────────────────────────
-  const handleRevoke = async (shareId: string) => {
-    setIsSaving(true);
-    try {
-      const res = await fetch(`/api/documents/${documentId}/shares/${shareId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: "Unknown error" }));
-        addToast("error", `Failed to revoke access: ${error}`);
-        return;
-      }
-      addToast("success", "Access revoked.");
-      setShares((prev) => prev.filter((s) => s.id !== shareId));
-    } catch {
-      addToast("error", "Network error — could not revoke access.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // ── Determine which users can be invited ────────────────────────────────────
-  const alreadySharedIds = new Set(shares.map((s) => s.userId));
-  const ownerProfile = USER_PROFILES.find((p) => p.name === ownerName);
-  const invitableUsers = USER_PROFILES.filter(
-    (p) => p.name !== ownerName && !alreadySharedIds.has(p.id)
-  );
-
-  return (
-    // Backdrop
-    <div
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Share document"
-    >
-      <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
-          <div className="flex items-center gap-2">
-            <Share2 size={16} className="text-indigo-600 dark:text-indigo-400" />
-            <div>
-              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">Share Document</h2>
-              <p className="text-[10px] text-zinc-400 truncate max-w-[260px]">{documentTitle}</p>
-            </div>
-          </div>
-          <Button variant="ghost" size="xs" icon={<X size={14} />} onClick={onClose} aria-label="Close" />
-        </div>
-
-        <div className="p-5 space-y-5">
-          {/* Owner row */}
-          <div>
-            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Owner</p>
-            <div className="flex items-center gap-2.5 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
-              {ownerProfile && (
-                <Avatar initials={ownerProfile.avatar} color={ownerProfile.color} size="sm" title={ownerProfile.name} />
-              )}
-              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 flex-1">{ownerName}</span>
-              <Badge variant="owned">
-                <Crown size={9} /> Owner
-              </Badge>
-            </div>
-          </div>
-
-          {/* Current shares */}
-          <div>
-            <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-              People with access
-            </p>
-
-            {isLoading ? (
-              <div className="flex justify-center py-4"><Spinner size="sm" /></div>
-            ) : shares.length === 0 ? (
-              <p className="text-xs text-zinc-400 py-2 text-center">No one else has access yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {shares.map((share) => {
-                  const profile = USER_PROFILES.find((p) => p.id === share.userId);
-                  if (!profile) return null;
-                  return (
-                    <li key={share.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/40">
-                      <Avatar initials={profile.avatar} color={profile.color} size="sm" title={profile.name} />
-                      <span className="flex-1 text-sm text-zinc-800 dark:text-zinc-200">{profile.name}</span>
-                      <Badge variant={share.permission === SHARE_PERMISSIONS.EDIT ? "edit" : "view"}>
-                        {share.permission}
-                      </Badge>
-                      {isOwner && (
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          icon={<Trash2 size={13} />}
-                          loading={isSaving}
-                          onClick={() => handleRevoke(share.id)}
-                          aria-label={`Revoke access for ${profile.name}`}
-                        />
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          {/* Grant access — only the owner can share */}
-          {isOwner && invitableUsers.length > 0 && (
-            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
-              <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                Invite someone
-              </p>
-
-              {/* Permission selector */}
-              <div className="flex gap-2 mb-3">
-                {(Object.values(SHARE_PERMISSIONS) as SharePermission[]).map((perm) => (
-                  <button
-                    key={perm}
-                    onClick={() => setSelectedPermission(perm)}
-                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
-                      selectedPermission === perm
-                        ? "border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300"
-                        : "border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-400"
-                    }`}
-                  >
-                    {perm === SHARE_PERMISSIONS.VIEW ? "Can view" : "Can edit"}
-                  </button>
-                ))}
-              </div>
-
-              {/* User list to invite */}
-              <ul className="space-y-2">
-                {invitableUsers.map((profile) => (
-                  <li key={profile.id} className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-                    <Avatar initials={profile.avatar} color={profile.color} size="sm" title={profile.name} />
-                    <span className="flex-1 text-sm text-zinc-800 dark:text-zinc-200">{profile.name}</span>
-                    <Button
-                      variant="primary"
-                      size="xs"
-                      icon={<UserPlus size={12} />}
-                      loading={isSaving}
-                      onClick={() => handleGrant(profile.id)}
-                      aria-label={`Grant ${profile.name} ${selectedPermission} access`}
-                    >
-                      Invite
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {!isOwner && (
-            <p className="text-xs text-zinc-400 text-center pt-2">
-              Only the document owner can manage sharing.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+'use client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { X, Share2, Trash2 } from 'lucide-react';
+import Button from '@/components/atoms/Button';
+import { DEMO_PERSONAS } from '@/lib/constants';
+import { apiFetch } from '@/lib/http/client';
+import type { DocumentPermissions, Share, SharePermission } from '@/lib/documents/types';
+import { useSession } from '@/components/auth/SessionProvider';
+interface ShareModalProps {documentId:string;documentTitle:string;ownerName:string;permissions:DocumentPermissions;onClose:()=>void}
+export default function ShareModal({documentId,documentTitle,ownerName,permissions,onClose}:ShareModalProps){
+ const {snapshot}=useSession();const session=snapshot?.session;
+ const [shares,setShares]=useState<Share[]>([]);const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);
+ const [email,setEmail]=useState('');const [persona,setPersona]=useState<'alice'|'bob'|'charlie'>('alice');const [permission,setPermission]=useState<SharePermission>('view');const [error,setError]=useState('');
+ const closeRef=useRef<HTMLButtonElement>(null);
+ const canManage=permissions.allowedOperations.includes('manage-shares')&&session?.kind!=='guest';
+ const fetchShares=useCallback(async()=>{try{setShares(await apiFetch<Share[]>(`/api/documents/${documentId}/shares`));}catch{setError('Sharing is unavailable. Please try again.');}finally{setLoading(false);}},[documentId]);
+ useEffect(()=>{const previous=document.activeElement;closeRef.current?.focus();let active=true;void Promise.resolve().then(()=>{if(!active)return;if(canManage)void fetchShares();else setLoading(false);});return()=>{active=false;if(previous instanceof HTMLElement)previous.focus();};},[fetchShares,canManage]);
+ const grant=async(event:React.FormEvent)=>{event.preventDefault();setSaving(true);setError('');try{
+  const share=await apiFetch<Share>(`/api/documents/${documentId}/shares`,{method:'POST',body:JSON.stringify({...session?.kind==='demo'?{persona}:{email:email.trim()},permission})});setShares(previous=>[...previous.filter(s=>s.id!==share.id),share]);setEmail('');
+ }catch{setError('Access could not be granted. Check the recipient and try again. Only existing verified accounts can receive shares.');}finally{setSaving(false);}};
+ const revoke=async(shareId:string)=>{setSaving(true);try{await apiFetch(`/api/documents/${documentId}/shares/${shareId}`,{method:'DELETE'});setShares(previous=>previous.filter(s=>s.id!==shareId));}catch{setError('Access could not be revoked. Please try again.');}finally{setSaving(false);}};
+ return <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={e=>{if(e.target===e.currentTarget)onClose();}} onKeyDown={e=>{if(e.key==='Escape')onClose();if(e.key==='Tab'){const focusable=Array.from(e.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input, select'));const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}} role="dialog" aria-modal="true" aria-label="Share document">
+ <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 p-5 space-y-5"><div className="flex justify-between items-center"><h2 className="text-sm font-bold flex gap-2"><Share2 size={16}/>Share document</h2><button ref={closeRef} onClick={onClose} aria-label="Close"><X size={16}/></button></div><p className="text-sm">{documentTitle}</p><p className="text-xs text-zinc-500">Owner: {ownerName}</p>
+ {!canManage?<p className="text-sm text-zinc-500">{session?.kind==='guest'?'Guest workspaces cannot share documents. Create an account to share.':'Only the document owner can manage sharing.'}</p>:<>
+ {loading?<p role="status">Loading shares…</p>:<ul className="space-y-2">{shares.map(share=><li key={share.id} className="flex gap-2 items-center text-sm"><span className="flex-1">{'persona' in share.recipient?DEMO_PERSONAS.find(p=>p.persona===share.recipient.persona)?.name:share.recipient.userId}</span><span>{share.permission}</span><Button variant="ghost" size="xs" aria-label="Revoke access" icon={<Trash2 size={13}/>} disabled={saving} onClick={()=>void revoke(share.id)}/></li>)}</ul>}
+ <form onSubmit={grant} className="space-y-3 border-t border-zinc-200 pt-4">{session?.kind==='demo'?<label className="block text-sm">Demo recipient<select aria-label="Demo recipient" value={persona} onChange={event=>{const value=DEMO_PERSONAS.find(p=>p.persona===event.target.value)?.persona;if(value)setPersona(value);}} className="block w-full p-2 border rounded-lg bg-transparent">{DEMO_PERSONAS.map(p=><option key={p.persona} value={p.persona}>{p.label}</option>)}</select></label>:<label className="block text-sm">Exact email address<input type="email" value={email} required maxLength={254} onChange={e=>setEmail(e.target.value)} className="block w-full p-2 border rounded-lg bg-transparent"/></label>}
+ <label className="block text-sm">Permission<select aria-label="Permission" value={permission} onChange={e=>setPermission(e.target.value==='edit'?'edit':'view')} className="block w-full p-2 border rounded-lg bg-transparent"><option value="view">Can view</option><option value="edit">Can edit</option></select></label><Button type="submit" loading={saving}>Grant access</Button></form></>}
+ {error&&<p role="alert" className="text-sm text-red-600">{error}</p>}</div></div>;
 }

@@ -1,0 +1,13 @@
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SET search_path=public,extensions;
+SELECT no_plan();
+INSERT INTO temporary_private.workspaces(id,kind,reset_at) VALUES('94000000-0000-0000-0000-000000000001','demo',clock_timestamp()+interval '1 day');
+SELECT temporary_private.seed_demo('94000000-0000-0000-0000-000000000001');
+SELECT is((SELECT count(*)::int FROM temporary_private.documents WHERE workspace_id='94000000-0000-0000-0000-000000000001' AND id::text!~'^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'),0,'fixture document ids satisfy the HTTP UUID contract');
+SELECT is((SELECT count(*)::int FROM temporary_private.history h JOIN temporary_private.documents d ON d.id=h.document_id WHERE d.workspace_id='94000000-0000-0000-0000-000000000001' AND h.id::text!~'^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'),0,'fixture history ids satisfy restore UUID validation');
+SELECT is((SELECT count(*)::int FROM temporary_private.shares sh JOIN temporary_private.documents d ON d.id=sh.document_id WHERE d.workspace_id='94000000-0000-0000-0000-000000000001' AND sh.id::text!~'^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'),0,'fixture share ids satisfy revoke UUID validation');
+SELECT temporary_private.seed_demo('94000000-0000-0000-0000-000000000001');
+SELECT is((SELECT count(*)::int FROM temporary_private.documents WHERE workspace_id='94000000-0000-0000-0000-000000000001'),3,'valid identifiers preserve idempotent fixture seeding');
+SELECT * FROM finish();
+ROLLBACK;

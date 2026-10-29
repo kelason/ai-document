@@ -1,0 +1,44 @@
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SET search_path=public,extensions;
+SELECT no_plan();
+INSERT INTO auth.users(id,email,email_confirmed_at,raw_user_meta_data) VALUES
+ ('84000000-0000-0000-0000-000000000001','claim@example.test',now(),'{"display_name":"Claim owner"}'),
+ ('84000000-0000-0000-0000-000000000002','claim-other@example.test',now(),'{"display_name":"Other"}'),
+ ('84000000-0000-0000-0000-000000000003','claim-unverified@example.test',NULL,'{}');
+SELECT temporary_start(repeat('8',64),'guest',NULL);
+CREATE TEMP TABLE claim_doc AS SELECT temporary_create(repeat('8',64),1,'{"title":"Guest draft","content":"<p>Original</p>"}') AS doc;
+SELECT temporary_update(repeat('8',64),1,(SELECT (doc->>'id')::uuid FROM claim_doc),'{"content":"<p>Latest</p>"}');
+SELECT is((SELECT count(*)::int FROM temporary_private.history WHERE document_id=(SELECT (doc->>'id')::uuid FROM claim_doc)),2,'ordinary autosave creates current history without explicit createVersion');
+SELECT temporary_add_attachment(repeat('8',64),1,(SELECT (doc->>'id')::uuid FROM claim_doc),'{"filename":"test.txt","mimeType":"text/plain","sizeBytes":1,"url":"/attachments/11111111-1111-1111-1111-111111111111"}');
+SELECT temporary_heartbeat(repeat('8',64),1,(SELECT (doc->>'id')::uuid FROM claim_doc),'{"active":true}');
+CREATE TEMP TABLE claim_snapshot AS SELECT prepare_guest_claim('84000000-0000-0000-0000-000000000001',repeat('8',64)) AS value;
+SELECT throws_ok($$SELECT prepare_guest_claim('84000000-0000-0000-0000-000000000003',repeat('8',64))$$,'P0001','VERIFICATION_REQUIRED','unverified user cannot prepare transfer');
+SELECT throws_ok($$SELECT claim_guest_workspace('84000000-0000-0000-0000-000000000001',repeat('8',64),'stale','[]')$$,'P0001','VALIDATION_ERROR','stale snapshot rejects transfer');
+SELECT is((SELECT count(*)::int FROM temporary_private.sessions WHERE token_hash=repeat('8',64)),1,'failed transfer preserves guest');
+CREATE TEMP TABLE claim_result AS SELECT claim_guest_workspace('84000000-0000-0000-0000-000000000001',repeat('8',64),value->>'snapshotHash',value->'documents') AS value FROM claim_snapshot;
+SELECT is((SELECT jsonb_array_length(value->'documentIds') FROM claim_result),1,'copies exactly one document');
+SELECT is((SELECT count(*)::int FROM public.documents WHERE owner_id='84000000-0000-0000-0000-000000000001'),1,'verified user owns copy');
+SELECT is((SELECT count(*)::int FROM public.documents WHERE id=(SELECT (doc->>'id')::uuid FROM claim_doc)),0,'copy uses new identifier');
+SELECT is((SELECT content FROM public.documents WHERE owner_id='84000000-0000-0000-0000-000000000001'),'<p>Latest</p>','copies latest content');
+SELECT is((SELECT count(*)::int FROM public.document_history WHERE updated_by='84000000-0000-0000-0000-000000000001'),2,'history gets new owner identity');
+SELECT is((SELECT count(*)::int FROM public.document_attachments WHERE document_id IN (SELECT id FROM public.documents WHERE owner_id='84000000-0000-0000-0000-000000000001')),0,'placeholder attachments are dropped');
+SELECT is((SELECT count(*)::int FROM public.document_presence WHERE user_id='84000000-0000-0000-0000-000000000001'),0,'presence is dropped');
+SELECT is((SELECT count(*)::int FROM temporary_private.sessions WHERE token_hash=repeat('8',64)),0,'successful transfer removes guest source');
+SELECT is(prepare_guest_claim('84000000-0000-0000-0000-000000000001',repeat('8',64))->'receipt',(SELECT value FROM claim_result),'duplicate prepare returns receipt after source deletion');
+SELECT is(claim_guest_workspace('84000000-0000-0000-0000-000000000001',repeat('8',64),'ignored','[]'),(SELECT value FROM claim_result),'duplicate claim returns same ids');
+SELECT throws_ok($$SELECT prepare_guest_claim('84000000-0000-0000-0000-000000000002',repeat('8',64))$$,'P0001','FORBIDDEN','receipt cannot be reused by another account');
+SELECT temporary_start(repeat('9',64),'demo','alice');
+SELECT throws_ok($$SELECT prepare_guest_claim('84000000-0000-0000-0000-000000000001',repeat('9',64))$$,'P0001','FORBIDDEN','demo transfer denied');
+SELECT temporary_start(repeat('a',64),'guest',NULL);
+UPDATE temporary_private.workspaces SET expires_at=clock_timestamp() WHERE id=(SELECT workspace_id FROM temporary_private.sessions WHERE token_hash=repeat('a',64));
+SELECT throws_ok($$SELECT prepare_guest_claim('84000000-0000-0000-0000-000000000001',repeat('a',64))$$,'P0001','SESSION_EXPIRED','expiry applies without cleanup');
+SET LOCAL ROLE anon;
+SELECT throws_ok($$SELECT prepare_guest_claim('84000000-0000-0000-0000-000000000001',repeat('8',64))$$,'42501',NULL,'anonymous prepare denied');
+SELECT throws_ok($$SELECT claim_guest_workspace('84000000-0000-0000-0000-000000000001',repeat('8',64),'x','[]')$$,'42501',NULL,'anonymous claim denied');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT prepare_guest_claim('84000000-0000-0000-0000-000000000001',repeat('8',64))$$,'42501',NULL,'authenticated cannot forge user id through service RPC');
+RESET ROLE;
+SELECT * FROM finish();
+ROLLBACK;

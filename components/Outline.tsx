@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { ListRestart, AlignLeft } from "lucide-react";
 
 interface OutlineItem {
@@ -14,10 +14,8 @@ interface OutlineProps {
 }
 
 export default function Outline({ content }: OutlineProps) {
-  const [headings, setHeadings] = useState<OutlineItem[]>([]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const headings = useMemo(() => {
+    if (typeof window === "undefined") return [];
     
     // Parse the HTML content to extract headings
     const parser = new DOMParser();
@@ -33,7 +31,7 @@ export default function Outline({ content }: OutlineProps) {
       });
     });
 
-    setHeadings(extracted);
+    return extracted;
   }, [content]);
 
   const handleHeadingClick = (text: string, level: string) => {

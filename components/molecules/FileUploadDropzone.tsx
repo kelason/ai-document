@@ -7,10 +7,11 @@
 
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { X, Upload, FileText, AlertTriangle, CheckCircle2 } from "lucide-react";
 import Button from "@/components/atoms/Button";
 import Spinner from "@/components/atoms/Spinner";
+import { apiFetch } from "@/lib/http/client";
 import { useToast } from "@/components/atoms/ToastProvider";
 import {
   MAX_FILE_SIZE_BYTES,
@@ -55,11 +56,13 @@ export default function FileUploadDropzone({
   const [isDragOver, setIsDragOver]   = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lifetime = useRef<AbortController | null>(null);
+  useEffect(() => { const controller = new AbortController(); lifetime.current = controller; return () => controller.abort(); }, []);
 
   // ── Validation ──────────────────────────────────────────────────────────────
   const validate = useCallback((f: File): string | null => {
     const ext = getExtension(f.name);
-    if (!SUPPORTED_EXTENSIONS.includes(ext as any)) {
+    if (!SUPPORTED_EXTENSIONS.some(supported => supported === ext)) {
       return `Unsupported file type "${ext}". Accepted: ${SUPPORTED_EXTENSIONS_LABEL}`;
     }
     if (f.size > MAX_FILE_SIZE_BYTES) {
@@ -107,27 +110,16 @@ export default function FileUploadDropzone({
     formData.append("file", file);
 
     try {
-      const res = await fetch(`/api/documents/${documentId}/upload`, {
-        method: "POST",
-        body: formData,
+      const body = await apiFetch<{html:string}>(`/api/documents/${documentId}/upload`, {
+        method: "POST", body: formData, signal: lifetime.current?.signal,
       });
-
-      const body = await res.json();
-
-      if (!res.ok) {
-        setUploadState("error");
-        setValidMsg(body.error ?? "Upload failed. Please try again.");
-        addToast("error", body.error ?? "Upload failed.");
-        return;
-      }
-
+      if (lifetime.current?.signal.aborted) return;
       setUploadState("success");
       addToast("success", `"${file.name}" imported successfully!`);
-      setTimeout(() => {
-        onUploaded(body.html, file.name);
-        onClose();
-      }, 900);
+      onUploaded(body.html, file.name);
+      onClose();
     } catch {
+      if (lifetime.current?.signal.aborted) return;
       setUploadState("error");
       setValidMsg("Network error — upload could not complete.");
       addToast("error", "Network error during upload.");
@@ -164,6 +156,10 @@ export default function FileUploadDropzone({
             onDragLeave={onDragLeave}
             onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            aria-label="Choose file to import"
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInputRef.current?.click(); } }}
             className={`relative flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${
               isDragOver
                 ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/20"

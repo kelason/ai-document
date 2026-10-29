@@ -1,0 +1,121 @@
+name: AI Docs checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ai-docs-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24.22.1
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: node scripts/check-migration.ts
+      - run: node scripts/build-demo-seed.ts --check
+      - run: npm run test:unit
+      - run: npm audit --audit-level=high
+  database-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      APP_ORIGIN: https://localhost:3000
+      TRUSTED_CLIENT_IP_HEADER: x-real-ip
+      RUN_MIGRATION_DB_TESTS: '1'
+      RUN_RATE_LIMIT_DB_TESTS: '1'
+      RATE_LIMIT_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      MIGRATION_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24.22.1
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3
+        with:
+          version: 2.122.0
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: supabase start
+      - name: Export isolated test credentials
+        run: |
+          supabase status -o json > "$RUNNER_TEMP/supabase-local.json"
+          python3 - <<'PYTHON'
+          import json, os, secrets
+          from pathlib import Path
+          d=json.loads(Path(os.environ['RUNNER_TEMP']+'/supabase-local.json').read_text())
+          mapping={'SUPABASE_TEST_URL':'API_URL','NEXT_PUBLIC_SUPABASE_URL':'API_URL','SUPABASE_TEST_ANON_KEY':'ANON_KEY','NEXT_PUBLIC_SUPABASE_ANON_KEY':'ANON_KEY','SUPABASE_TEST_SERVICE_ROLE_KEY':'SERVICE_ROLE_KEY','SUPABASE_SERVICE_ROLE_KEY':'SERVICE_ROLE_KEY'}
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              for name,key in mapping.items():
+                  value=d[key]
+                  if 'KEY' in name: print('::add-mask::'+value)
+                  f.write(name+'='+value+'\n')
+              for name in ['CSRF_SECRET','RATE_LIMIT_SECRET']:
+                  value=secrets.token_hex(32)
+                  print('::add-mask::'+value)
+                  f.write(name+'='+value+'\n')
+          PYTHON
+      - run: npx playwright install --with-deps chromium
+      - run: supabase test db
+      - run: npm run test:integration
+      - run: npm run build
+      - run: node scripts/check-client-bundle.mjs
+      - run: npm run test:e2e
+      - name: Repeat against an empty database
+        run: |
+          npm run test:db
+          npm run test:integration
+          npm run test:e2e
+      - if: always()
+        run: supabase stop --no-backup
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - name: Scan history and working tree for secrets
+        run: |
+          curl --fail --silent --show-error -L https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner
+          scan_dir=$(mktemp -d)
+          git ls-files -z | tar --null -T - -cf - | tar -xf - -C "$scan_dir"
+          "$RUNNER_TEMP/gitleaks" dir "$scan_dir" --redact --no-banner
+          rm -rf "$scan_dir"
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never
+  codeql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3

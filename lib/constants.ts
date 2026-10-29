@@ -1,13 +1,12 @@
 // =============================================================================
-// User Profiles (simulated authentication — no real login required)
+// Demo display metadata — never an authentication or authorization source
 // =============================================================================
-export const USER_PROFILES = [
-  { id: "user-1", name: "Alice Cooper",  avatar: "AC", color: "#ec4899", bg: "bg-pink-500"    },
-  { id: "user-2", name: "Bob Miller",    avatar: "BM", color: "#3b82f6", bg: "bg-blue-500"    },
-  { id: "user-3", name: "Charlie Davis", avatar: "CD", color: "#10b981", bg: "bg-emerald-500" },
+export const DEMO_PERSONAS = [
+  { persona: 'alice', label: 'Alice', name: 'Alice Cooper', avatar: 'AC', color: '#ec4899' },
+  { persona: 'bob', label: 'Bob', name: 'Bob Miller', avatar: 'BM', color: '#3b82f6' },
+  { persona: 'charlie', label: 'Charlie', name: 'Charlie Davis', avatar: 'CD', color: '#10b981' },
 ] as const;
 
-export type UserProfile = (typeof USER_PROFILES)[number];
 
 // =============================================================================
 // File Upload
@@ -56,12 +55,6 @@ export const CONTENT_SAVE_DEBOUNCE_MS = 1_200;
 
 /** Delay after last title keystroke before title is persisted */
 export const TITLE_SAVE_DEBOUNCE_MS = 1_000;
-
-// =============================================================================
-// Co-editor simulation
-// =============================================================================
-/** Characters per tick when Bob types in the simulation */
-export const SIM_TYPING_INTERVAL_MS = 90;
 
 // =============================================================================
 // Sharing permissions

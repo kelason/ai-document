@@ -1,6 +1,4 @@
--- Run this in your Supabase SQL Editor (https://app.supabase.com)
--- Project: tqbeneuvjeomwymjjjen → SQL Editor
-
--- Step 1: Disable Row Level Security on both tables
-ALTER TABLE documents DISABLE ROW LEVEL SECURITY;
-ALTER TABLE document_history DISABLE ROW LEVEL SECURITY;
+-- Deprecated: RLS must remain enabled.
+-- Use reviewed, versioned supabase/migrations through the Supabase CLI.
+-- An access error requires an authentication/policy diagnosis, not a bypass.
+-- Do not apply individual migrations independently of the coordinated release.
