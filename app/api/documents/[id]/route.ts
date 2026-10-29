@@ -1,56 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getDocumentById, updateDocument, deleteDocument, restoreVersion } from "@/lib/db";
-
-interface RouteParams {
-  params: Promise<{ id: string }>;
-}
-
-// GET /api/documents/[id]
-export async function GET(request: NextRequest, props: RouteParams) {
-  const { id } = await props.params;
-  const doc = await getDocumentById(id);
-  if (!doc) {
-    return NextResponse.json({ error: "Document not found" }, { status: 404 });
-  }
-  return NextResponse.json(doc);
-}
-
-// PATCH /api/documents/[id]
-export async function PATCH(request: NextRequest, props: RouteParams) {
-  const { id } = await props.params;
-  try {
-    const body = await request.json();
-    const { title, content, updatedBy, restoreVersionId, createVersion } = body;
-
-    let doc;
-    if (restoreVersionId) {
-      doc = await restoreVersion(id, restoreVersionId, updatedBy || "Anonymous");
-    } else {
-      doc = await updateDocument(id, {
-        title,
-        content,
-        updatedBy,
-        createVersion,
-      });
-    }
-
-    if (!doc) {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 });
-    }
-
-    return NextResponse.json(doc);
-  } catch (error) {
-    console.error("Failed to update document:", error);
-    return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
-  }
-}
-
-// DELETE /api/documents/[id]
-export async function DELETE(request: NextRequest, props: RouteParams) {
-  const { id } = await props.params;
-  const success = await deleteDocument(id);
-  if (!success) {
-    return NextResponse.json({ error: "Document not found" }, { status: 404 });
-  }
-  return NextResponse.json({ success: true });
-}
+import { z } from 'zod';
+import { requireContext } from '@/lib/auth/context';
+import { DOCUMENT_REQUEST_BYTES, parseJsonBody, restoreDocumentSchema, updateDocumentSchema } from '@/lib/security/validation';
+import { cleanDocument, documentId, endpoint, json, mutationContext, type DocumentParams } from '../_shared';
+export async function GET(request:Request,{params}:DocumentParams):Promise<Response> {return endpoint(async()=>{const {store}=await requireContext(request); return json(cleanDocument(await store.get(documentId((await params).id))));});}
+export async function PATCH(request:Request,{params}:DocumentParams):Promise<Response> {return endpoint(async()=>{const {store}=await mutationContext(request); const id=documentId((await params).id); const input=await parseJsonBody(request,z.union([restoreDocumentSchema,updateDocumentSchema]),DOCUMENT_REQUEST_BYTES); return json(cleanDocument('restoreVersionId' in input?await store.restore(id,input.restoreVersionId):await store.update(id,input)));});}
+export async function DELETE(request:Request,{params}:DocumentParams):Promise<Response> {return endpoint(async()=>{const {store}=await mutationContext(request); await store.remove(documentId((await params).id)); return json({success:true});});}

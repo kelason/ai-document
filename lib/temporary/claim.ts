@@ -1,0 +1,32 @@
+import 'server-only';
+import {z} from 'zod';
+import {getSessionBinding,getVerifiedUser} from '../auth/context';
+import {readSelectedMode} from '../auth/mode';
+import {ApiError} from '../http/errors';
+import {requireCsrf} from '../security/csrf';
+import {hashLimitKey,requireLimit} from '../security/rate-limit';
+import {parseJsonBody} from '../security/validation';
+import {sanitizeDocumentHtml} from '../security/html';
+import {retainedGuestTokenHash,temporaryRpc} from './sessions';
+const receiptSchema=z.object({documentIds:z.array(z.uuid()).max(20)}).strict();
+const snapshotSchema=z.object({snapshotHash:z.string().min(1),documents:z.array(z.object({id:z.uuid(),content:z.string().max(1048576),history:z.array(z.object({id:z.uuid(),content:z.string().max(1048576)}).strict()).max(50)}).strict()).max(20)});
+export async function claimGuestWorkspace(request:Request):Promise<{documentIds:string[]}> {
+ if(await readSelectedMode()!=='user') throw new ApiError('FORBIDDEN','Sign in to your verified account to save guest work.');
+ const user=await getVerifiedUser();const binding=await getSessionBinding();
+ if(!user||!binding) throw new ApiError(binding?'VERIFICATION_REQUIRED':'UNAUTHENTICATED','Sign in to a verified account to continue.');
+ requireCsrf(request,binding);
+ await requireLimit(hashLimitKey('mutation-user',user.userId),'mutation');
+ await parseJsonBody(request,z.object({}).strict());
+ const tokenHash=await retainedGuestTokenHash();
+ if(!tokenHash) throw new ApiError('SESSION_EXPIRED','Your guest session is no longer available.');
+ const args={p_user_id:user.userId,p_token_hash:tokenHash};
+ const value=await temporaryRpc<unknown>('prepare_guest_claim',args);
+ if(value&&typeof value==='object'&&'receipt' in value) return receiptSchema.parse(value.receipt);
+ const parsed=snapshotSchema.safeParse(value);
+ if(!parsed.success) throw new ApiError('STORAGE_UNAVAILABLE','Storage is temporarily unavailable.');
+ const documents=parsed.data.documents.map(d=>({...d,content:sanitizeDocumentHtml(d.content),history:d.history.map(h=>({...h,content:sanitizeDocumentHtml(h.content)}))}));
+ const result=await temporaryRpc<unknown>('claim_guest_workspace',{...args,p_snapshot_hash:parsed.data.snapshotHash,p_documents:documents});
+ const receipt=receiptSchema.safeParse(result);
+ if(!receipt.success) throw new ApiError('STORAGE_UNAVAILABLE','Storage is temporarily unavailable.');
+ return receipt.data;
+}

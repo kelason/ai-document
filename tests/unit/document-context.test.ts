@@ -1,0 +1,18 @@
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
+vi.mock('server-only',()=>({}));
+const state=vi.hoisted(()=>({mode:vi.fn(),credential:vi.fn(),temporary:vi.fn(),persistent:vi.fn(),getUser:vi.fn(),getSession:vi.fn(),rpc:vi.fn()}));
+vi.mock('../../lib/auth/mode',()=>({readSelectedMode:state.mode}));
+vi.mock('../../lib/temporary/sessions',()=>({getTemporaryCredential:state.credential,temporarySessionBinding:async()=> 'temporary:credential'}));
+vi.mock('../../lib/temporary/repository',()=>({createTemporaryStore:state.temporary}));
+vi.mock('../../lib/documents/repository',()=>({createPersistentStore:state.persistent}));
+vi.mock('../../lib/supabase/server',()=>({createServerSupabaseClient:async()=>({auth:{getUser:state.getUser,getSession:state.getSession},rpc:state.rpc})}));
+import { requireContext } from '../../lib/auth/context';
+const id='c0b546e8-ff6b-4b0c-a7eb-cdfe76906151';
+const actor={kind:'demo',generation:5,workspaceId:id,sessionId:id,expiresAt:new Date(Date.now()+10000).toISOString(),persona:'alice'};
+const request=(method='GET',generation?:string)=>new Request('https://docs.example.test',{method,headers:generation?{'x-workspace-generation':generation}:{}});
+beforeEach(()=>{vi.resetAllMocks();state.mode.mockResolvedValue('user');state.getUser.mockResolvedValue({data:{user:{id,email_confirmed_at:'2026-01-01'}},error:null}); state.getSession.mockResolvedValue({data:{session:{access_token:`x.${Buffer.from(JSON.stringify({sub:id,session_id:id})).toString('base64url')}.y`}},error:null});state.rpc.mockResolvedValue({data:true,error:null});state.credential.mockResolvedValue({tokenHash:'a'.repeat(64),actor});});
+afterEach(()=>vi.unstubAllEnvs());
+it('binds a real verified client and refuses stale or unverified auth without temporary fallback',async()=>{expect((await requireContext(request())).actor).toEqual({kind:'user',userId:id});state.rpc.mockResolvedValue({data:false,error:null});await expect(requireContext(request())).rejects.toMatchObject({code:'VERIFICATION_REQUIRED'});expect(state.credential).not.toHaveBeenCalled(); state.getUser.mockResolvedValue({data:{user:null},error:null}); await expect(requireContext(request())).rejects.toMatchObject({code:'UNAUTHENTICATED'});});
+it('requires temporary generation on every write and carries the original stale value',async()=>{state.mode.mockResolvedValue('demo');await expect(requireContext(request('PATCH'))).rejects.toMatchObject({code:'VALIDATION_ERROR'}); await requireContext(request('PATCH','3')); expect(state.temporary).toHaveBeenLastCalledWith(expect.objectContaining({actor}),3); await requireContext(request());expect(state.temporary).toHaveBeenLastCalledWith(expect.objectContaining({actor}),5);});
+it('rejects malformed or missing selected temporary credentials without selecting real auth',async()=>{state.mode.mockResolvedValue('guest');state.credential.mockResolvedValue(null);await expect(requireContext(request())).rejects.toMatchObject({code:'UNAUTHENTICATED'});expect(state.getUser).not.toHaveBeenCalled();});
+it('rejects database verification outages with no fallback',async()=>{state.rpc.mockResolvedValue({data:null,error:{message:'secret'}});await expect(requireContext(request())).rejects.toMatchObject({code:'STORAGE_UNAVAILABLE'});expect(state.persistent).not.toHaveBeenCalled();});

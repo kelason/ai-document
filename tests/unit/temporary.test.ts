@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-const state = vi.hoisted(() => ({ duplicates: [] as {name:string;value:string}[], cookies: new Map<string, string>(), settings: new Map<string, Record<string, unknown>>(), rpc: vi.fn(), profile: {display_name:'Verified Name',email:'verified@example.test'}, authBinding: null as string | null, user: null as { userId: string } | null }));
+const state = vi.hoisted(() => ({ duplicates: [] as {name:string;value:string}[], cookies: new Map<string, string>(), settings: new Map<string, Record<string, unknown>>(), rpc: vi.fn(), profileSelect: vi.fn(), profile: {display_name:'Verified Name',email:'verified@example.test'}, authBinding: null as string | null, user: null as { userId: string } | null }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [...state.cookies].map(([name,value]) => ({ name,value })).concat(state.duplicates), set: (name: string,value: string,settings: Record<string,unknown>) => { state.cookies.set(name,value); state.settings.set(name,settings); } }) }));
-vi.mock('../../lib/supabase/server', () => ({ createServerSupabaseClient: async () => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({data:state.profile,error:null}) }) }) }) }) }));
+vi.mock('../../lib/supabase/server', () => ({ createServerSupabaseClient: async () => ({ auth:{getUser:async()=>({data:{user:{id:state.user?.userId,email:'verified@example.test'}},error:null})}, from: () => ({ select: (columns:string) => {state.profileSelect(columns);return { eq: () => ({ single: async () => columns.includes('email')?({data:null,error:{code:'42501'}}):({data:state.profile,error:null}) }) };} }) }) }));
 vi.mock('../../lib/supabase/admin', () => ({ createAdminSupabaseClient: () => ({ rpc: state.rpc }) }));
 vi.mock('../../lib/auth/context', () => ({ getVerifiedUser: async () => state.user, getSessionBinding: async () => state.authBinding }));
 vi.mock('../../lib/security/rate-limit', () => ({ hashLimitKey: (s: string,v: string) => s+v, trustedClientIp: () => '127.0.0.1', requireLimit: async () => {} }));
@@ -11,7 +11,8 @@ import { startTemporarySession, getTemporaryCredential, temporaryCookieName, get
 import { createTemporaryStore } from '../../lib/temporary/repository';
 import { setSelectedMode } from '../../lib/auth/mode';
 import { issueCsrf } from '../../lib/security/csrf';
-import { GET, POST } from '../../app/api/session/route';
+import { GET, POST, DELETE as endSession } from '../../app/api/session/route';
+import { POST as claimPost } from '../../app/api/session/claim/route';
 import { POST as personaPost } from '../../app/api/session/persona/route';
 const actor = { kind: 'guest' as const, workspaceId: '4e89a06b-2f64-4cb6-90f3-71594d503eda', sessionId: 'cab08246-06de-4432-8484-56f080050b1e', generation: 1, expiresAt: new Date(Date.now()+5*3600000).toISOString() };
 beforeEach(() => { vi.clearAllMocks(); state.cookies.clear(); state.duplicates=[]; state.settings.clear(); state.authBinding=null; state.user=null; vi.stubEnv('APP_ORIGIN','https://docs.example.test'); vi.stubEnv('CSRF_SECRET','s'.repeat(64)); state.rpc.mockResolvedValue({ data: actor,error:null }); });
@@ -78,7 +79,7 @@ describe('session HTTP CSRF and metadata',()=>{
   await setSelectedMode('user'); state.user={userId:actor.workspaceId}; state.authBinding='auth:verified-session';
   const result=await GET(req('/api/session')); const body=await result.json();
   expect(body.session).toEqual({kind:'user',userId:actor.workspaceId,displayName:'Verified Name',email:'verified@example.test'});
-  expect(state.cookies.get(temporaryCookieName('guest'))).toBe(guest);
+  expect(state.cookies.get(temporaryCookieName('guest'))).toBe(guest); expect(state.profileSelect).toHaveBeenCalledWith('display_name'); expect(body.guestClaim).toEqual({expiresAt:actor.expiresAt});
  });
  it('requires stale persona writes to carry their original generation through to SQL',async()=>{
   state.rpc.mockResolvedValue({data:{...actor,kind:'demo',persona:'alice'},error:null}); await startTemporarySession('demo','alice');
@@ -110,4 +111,39 @@ describe('session HTTP CSRF and metadata',()=>{
   expect((await personaPost(req('/api/session/persona',{persona:'bob'},token,{'x-workspace-generation':'1'}))).status).toBe(403);
   expect((await personaPost(req('/api/session/persona',{persona:'bob'},token))).status).toBe(400);
  });
+});
+
+describe('explicit verified guest transfer',()=>{
+ async function verifiedGuest(){await startTemporarySession('guest');await setSelectedMode('user');state.user={userId:actor.workspaceId};state.authBinding='auth:verified-session';return issueCsrf(state.authBinding);}
+ it('requires verified account mode, real-auth CSRF, and empty strict input',async()=>{
+  const token=await verifiedGuest();
+  expect((await claimPost(req('/api/session/claim',{}))).status).toBe(403);
+  expect((await claimPost(req('/api/session/claim',{userId:actor.sessionId},token))).status).toBe(400);
+  await setSelectedMode('demo');expect((await claimPost(req('/api/session/claim',{},token))).status).toBe(403);
+ });
+ it('sanitizes document and revision content without accepting browser identity',async()=>{
+  const token=await verifiedGuest();
+  const resultIds={documentIds:[actor.sessionId]};
+  state.rpc.mockImplementation(async(name:string)=>({error:null,data:name==='prepare_guest_claim'?{snapshotHash:'snapshot',documents:[{id:actor.workspaceId,content:'<p>Safe</p><script>bad()</script>',history:[{id:actor.sessionId,content:'<b onclick="bad()">Old</b>'}]}]}:resultIds}));
+  const response=await claimPost(req('/api/session/claim',{},token));
+  expect(response.status).toBe(200);expect(await response.json()).toEqual(resultIds);
+  expect(state.rpc).toHaveBeenCalledWith('claim_guest_workspace',expect.objectContaining({p_user_id:actor.workspaceId,p_snapshot_hash:'snapshot',p_documents:[{id:actor.workspaceId,content:'<p>Safe</p>',history:[{id:actor.sessionId,content:'<b>Old</b>'}]}]}));
+ });
+ it('allows idempotent receipt replay without revalidating the consumed workspace',async()=>{
+  const token=await verifiedGuest();state.rpc.mockResolvedValue({error:null,data:{receipt:{documentIds:[actor.sessionId]}}});
+  const response=await claimPost(req('/api/session/claim',{},token));expect(response.status).toBe(200);
+  expect(state.rpc).toHaveBeenLastCalledWith('prepare_guest_claim',expect.objectContaining({p_user_id:actor.workspaceId}));
+ });
+ it('returns 410 for expired source and never exposes database details',async()=>{
+  const token=await verifiedGuest();state.rpc.mockResolvedValue({data:null,error:{message:'SESSION_EXPIRED'}});
+  expect((await claimPost(req('/api/session/claim',{},token))).status).toBe(410);
+ });
+});
+
+it('requires current CSRF to end the selected temporary session',async()=>{
+ await startTemporarySession('guest');const token=(await (await GET(req('/api/session'))).json()).csrfToken;
+ const make=(csrf?:string)=>new Request('https://docs.example.test/api/session',{method:'DELETE',headers:{origin:'https://docs.example.test',...(csrf?{'x-csrf-token':csrf}:{})}});
+ expect((await endSession(make())).status).toBe(403);
+ expect((await endSession(make(token))).status).toBe(204);
+ expect(state.cookies.get(temporaryCookieName('guest'))).toBe('');
 });

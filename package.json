@@ -1,5 +1,5 @@
 {
-  "name": "ai-assesment",
+  "name": "ai-docs",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,9 @@
     "test:e2e": "playwright test",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test:db": "supabase db reset --local && supabase test db",
+    "test:all": "npm run lint && npm run typecheck && npm run test:unit && npm run test:db && npm run test:integration && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

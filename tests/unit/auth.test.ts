@@ -165,7 +165,16 @@ describe('local test inbox adapters', () => {
       if (url.endsWith('/api/v1/message/message-1')) return Response.json({ HTML: '<a href="http://localhost:3000/auth/confirm?token_hash=hashed&amp;type=email">Confirm</a>', Text: '' });
       return new Response('not found', { status: 404 });
     });
-    try { expect(await waitForAuthEmail('local@example.test', 100)).toEqual({ tokenHash: 'hashed', type: 'email' }); }
+    try { expect(await waitForAuthEmail('local@example.test', 100)).toEqual({ tokenHash: 'hashed', type: 'email',url:'http://localhost:3000/auth/confirm?token_hash=hashed&type=email' }); }
     finally { vi.unstubAllGlobals(); }
   });
+});
+
+it('preserves a same-origin email redirect destination and rejects external redirects',async()=>{
+ authenticated();state.client.auth.verifyOtp.mockResolvedValue({error:null});
+ const target=encodeURIComponent('https://docs.example.test/auth/callback?next=%2F%3Ffrom%3Demail');
+ const response=await confirm(new Request(`https://docs.example.test/auth/confirm?token_hash=valid&type=email&redirect_to=${target}`));
+ expect(response.headers.get('location')).toBe('https://docs.example.test/?from=email');
+ const external=await confirm(new Request('https://docs.example.test/auth/confirm?token_hash=valid&type=email&redirect_to=https%3A%2F%2Fevil.test%2Fauth%2Fcallback%3Fnext%3D%2Fsecret'));
+ expect(external.headers.get('location')).toBe('https://docs.example.test/');
 });

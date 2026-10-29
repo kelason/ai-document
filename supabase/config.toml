@@ -25,14 +25,14 @@ enabled = true
 enabled = true
 port = 54323
 
-[inbucket]
+[local_smtp]
 enabled = true
 port = 54324
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+site_url = "https://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback", "https://localhost:3000/auth/callback"]
 jwt_expiry = 3600
 enable_signup = true
 minimum_password_length = 12
@@ -50,3 +50,9 @@ content_path = "./supabase/templates/confirmation.html"
 [auth.email.template.recovery]
 subject = "Reset your AI Docs password"
 content_path = "./supabase/templates/recovery.html"
+
+# Generous limits only for the disposable, loopback development stack.
+[auth.rate_limit]
+email_sent = 1000
+token_verifications = 1000
+sign_in_sign_ups = 1000

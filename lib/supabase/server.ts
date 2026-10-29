@@ -16,7 +16,7 @@ export async function createServerSupabaseClient(options: { writable?: boolean }
   const jar = await cookies();
   const { url, key } = supabasePublicConfig();
   return createServerClient(url, key, {
-    cookieOptions: { path: '/', sameSite: 'lax', secure: applicationOrigin().startsWith('https:') },
+    cookieOptions: { path: '/', httpOnly:true, sameSite: 'lax', secure: applicationOrigin().startsWith('https:') },
     global: { fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }) },
     cookies: {
       getAll: () => jar.getAll(),

@@ -2,14 +2,15 @@
 
 import React from "react";
 import { History, RotateCcw, Calendar, User } from "lucide-react";
-import { DocumentVersion } from "@/lib/db";
+import type { DocumentVersion } from "@/lib/documents/types";
 
 interface VersionHistoryProps {
   history: DocumentVersion[];
   onRestore: (versionId: string) => void;
+  canRestore: boolean;
 }
 
-export default function VersionHistory({ history, onRestore }: VersionHistoryProps) {
+export default function VersionHistory({ history, onRestore, canRestore }: VersionHistoryProps) {
   const sortedHistory = [...history].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
@@ -80,7 +81,7 @@ export default function VersionHistory({ history, onRestore }: VersionHistoryPro
                     Title: &quot;{version.title}&quot;
                   </div>
 
-                  {index > 0 && (
+                  {index > 0 && canRestore && (
                     <button
                       onClick={() => onRestore(version.id)}
                       className="mt-2 flex items-center justify-center gap-1 w-full py-1 px-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-lg text-[10px] font-semibold transition-all shadow-sm"

@@ -6,9 +6,6 @@ import {
   Bold,
   Italic,
   Underline,
-  Heading1,
-  Heading2,
-  Heading3,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -21,7 +18,6 @@ import {
   Undo2,
   Redo2,
   Sparkles,
-  Link,
   ChevronDown
 } from "lucide-react";
 
@@ -36,6 +32,8 @@ interface ActiveUser {
 
 interface EditorProps {
   documentId: string;
+  syncScope?: string;
+  onRemoteChange?: () => void;
   initialContent: string;
   activeUser: { id: string; name: string; avatar: string; color: string };
   onContentChange: (newContent: string) => void;
@@ -50,8 +48,9 @@ interface EditorProps {
 
 export default function Editor({
   documentId,
+  syncScope,
+  onRemoteChange,
   initialContent,
-  activeUser,
   onContentChange,
   remoteUsers,
   onCursorChange,
@@ -77,30 +76,26 @@ export default function Editor({
   const [selectionRange, setSelectionRange] = useState<Range | null>(null);
   const [bubbleMenuPosition, setBubbleMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [isFormatDropdownOpen, setIsFormatDropdownOpen] = useState(false);
-  const [hasInitialized, setHasInitialized] = useState(false);
+  const initializedDocument = useRef<string | null>(null);
   const prevRevisionRef = useRef(contentRevision || 0);
-
-  // Reset initialization when document changes
-  useEffect(() => {
-    setHasInitialized(false);
-  }, [documentId]);
 
   // Sync content with editor once when document details finish loading
   // or when an external change (like a file import) bumps contentRevision.
   useEffect(() => {
+    const hasInitialized = initializedDocument.current === documentId;
     const isNewRevision = contentRevision !== undefined && contentRevision !== prevRevisionRef.current;
     
     if (editorRef.current && (!hasInitialized || isNewRevision)) {
       if (!hasInitialized && !initialContent && initialContent !== "") return;
       
       editorRef.current.innerHTML = sanitizeEditorHtml(initialContent);
-      setHasInitialized(true);
+      initializedDocument.current = documentId;
       
       if (isNewRevision && contentRevision !== undefined) {
         prevRevisionRef.current = contentRevision;
       }
     }
-  }, [initialContent, hasInitialized, contentRevision]);
+  }, [documentId, initialContent, contentRevision]);
 
   // Execute formatting commands (toolbar buttons, keyboard shortcuts).
   // Update button active states in toolbar
@@ -113,7 +108,7 @@ export default function Editor({
       h1 = blockType === "h1" || blockType === "H1";
       h2 = blockType === "h2" || blockType === "H2";
       h3 = blockType === "h3" || blockType === "H3";
-    } catch (e) {}
+    } catch { /* Browser formatting command may be unavailable. */ }
 
     setActiveFormats({
       bold:          document.queryCommandState("bold"),
@@ -198,43 +193,19 @@ export default function Editor({
     handleEditorInput();
   };
 
-  // Broadcast local edits using BroadcastChannel for immediate multi-tab sync
+  // Messages carry invalidation only; every refresh rechecks server permissions.
   useEffect(() => {
-    const channel = new BroadcastChannel(`doc-sync-${documentId}`);
-    
-    const handleChannelMessage = (event: MessageEvent) => {
-      if (!event.data || typeof event.data !== "object") return;
-      const { type, content, sender } = event.data;
-      if (typeof content !== "string" || content.length > 1024 * 1024) return;
-      if (sender !== activeUser.id) {
-        if (type === "content-update" && editorRef.current && editorRef.current.innerHTML !== content) {
-          // Store selection before update
-          const selection = window.getSelection();
-          let range: Range | null = null;
-          if (selection && selection.rangeCount > 0) {
-            range = selection.getRangeAt(0).cloneRange();
-          }
-
-          editorRef.current.innerHTML = sanitizeEditorHtml(content);
-
-          // Restore selection if possible
-          if (range && selection) {
-            try {
-              selection.removeAllRanges();
-              selection.addRange(range);
-            } catch (e) {}
-          }
-        }
-      }
+    if (!syncScope || typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(`doc-sync-${syncScope}-${documentId}`);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type !== 'document-changed') return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => onRemoteChange?.(), 100);
     };
-
-    channel.addEventListener("message", handleChannelMessage);
-
-    return () => {
-      channel.removeEventListener("message", handleChannelMessage);
-      channel.close();
-    };
-  }, [documentId, activeUser.id]);
+    channel.addEventListener('message', handleMessage);
+    return () => { if (timer) clearTimeout(timer); channel.removeEventListener('message', handleMessage); channel.close(); };
+  }, [documentId, syncScope, onRemoteChange]);
 
   // Insert helper widgets
   const insertDivider = () => {

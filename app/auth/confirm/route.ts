@@ -25,11 +25,20 @@ export async function GET(request: Request) {
     }
     await setSelectedMode('user');
     (await cookies()).set(preAuthCookieName(), '', { path: '/', maxAge: 0, httpOnly: true, sameSite: 'strict', secure: applicationOrigin().startsWith('https:') });
-    return redirect(type === 'recovery' ? '/auth/reset-password' : safeReturnPath(url.searchParams.get('next')));
+    return redirect(type === 'recovery' ? '/auth/reset-password' : emailReturnPath(url));
   } catch (error) { const response = toErrorResponse(error); response.headers.set('Cache-Control', 'no-store'); return response; }
 }
 function redirect(path: string) {
   const response = NextResponse.redirect(new URL(path, applicationOrigin()), 303);
   response.headers.set('Cache-Control', 'private, no-store'); response.headers.set('Referrer-Policy', 'no-referrer'); response.headers.set('Vary', 'Cookie');
   return response;
+}
+
+function emailReturnPath(url:URL):string {
+ if(url.searchParams.has('next'))return safeReturnPath(url.searchParams.get('next'));
+ try {
+  const target=new URL(url.searchParams.get('redirect_to')??'');
+  if(target.origin===applicationOrigin()&&target.pathname==='/auth/callback')return safeReturnPath(target.searchParams.get('next'));
+ }catch{}
+ return '/';
 }

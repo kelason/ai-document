@@ -15,7 +15,7 @@ export type TemporaryCredential = Readonly<{ tokenHash: string; actor: Temporary
 const base = { workspaceId: z.uuid(), sessionId: z.uuid(), generation: z.number().int().positive(), expiresAt: z.string().datetime({ offset: true }) };
 const actorSchema = z.discriminatedUnion('kind', [z.object({ ...base, kind: z.literal('guest') }).strict(),z.object({ ...base, kind: z.literal('demo'), persona: z.enum(['alice','bob','charlie']) }).strict()]);
 const knownErrors: Partial<Record<ErrorCode,string>> = {
-  SESSION_EXPIRED: 'This session has expired.', DEMO_RESET: 'This demo workspace has reset. Please refresh.',
+  VERIFICATION_REQUIRED: 'Verify your account to continue.', SESSION_EXPIRED: 'This session has expired.', DEMO_RESET: 'This demo workspace has reset. Please refresh.',
   FORBIDDEN: 'This operation is not allowed.', NOT_FOUND: 'Document not found.',
   VALIDATION_ERROR: 'Invalid request.', QUOTA_EXCEEDED: 'The temporary workspace limit has been reached.',
 };
@@ -103,4 +103,9 @@ export async function endTemporarySession(): Promise<void> {
 /** CSRF binds to the selected validated context; retained guest cookies are not a fallback. */
 export async function temporarySessionBinding(credential: TemporaryCredential): Promise<string> {
   return `temporary:${credential.tokenHash}`;
+}
+
+/** Retained proof only for verified explicit claims; SQL validates source or receipt. */
+export async function retainedGuestTokenHash():Promise<string|null> {
+ const raw=await rawCookie('guest');return raw?hash(raw):null;
 }

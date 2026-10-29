@@ -5,28 +5,27 @@
 // Dashboard: lists owned & shared documents, allows creation from templates,
 // file search, and opening the ShareModal per-document.
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   FileText, Search, Plus, Trash2, Calendar, Grid, List as ListIcon,
-  Sparkles, Users, Briefcase, Laptop, Share2, Upload, Crown,
+  Sparkles, Users, Briefcase, Laptop, Share2, Crown,
 } from "lucide-react";
 
 import Badge from "@/components/atoms/Badge";
-import Avatar from "@/components/atoms/Avatar";
 import Spinner from "@/components/atoms/Spinner";
 import Button from "@/components/atoms/Button";
 import ShareModal from "@/components/molecules/ShareModal";
 import { useToast } from "@/components/atoms/ToastProvider";
-import { USER_PROFILES } from "@/lib/constants";
+import { apiFetch, sessionKey } from '@/lib/http/client';
+import type { DocumentSummary } from '@/lib/documents/types';
+import { SessionStatus, useSession } from '@/components/auth/SessionProvider';
+import PublicEntry from '@/components/auth/PublicEntry';
+import AccountMenu from '@/components/auth/AccountMenu';
+import SessionBanner from '@/components/temporary/SessionBanner';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface Share { id: string; userId: string; permission: "view" | "edit" }
-interface Doc {
-  id: string; title: string; content: string;
-  createdAt: string; updatedAt: string; owner: string;
-  shares?: Share[];
-}
+type Doc = DocumentSummary;
 
 // ── Template configuration (no inline magic strings) ────────────────────────
 const TEMPLATES = [
@@ -83,7 +82,7 @@ function DocCard({
 
         <div className="flex items-center gap-1">
           {/* Share button — owner only */}
-          {!isShared && (
+          {doc.permissions.allowedOperations.includes("manage-shares") && (
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onShare(doc); }}
               title="Manage sharing"
@@ -92,7 +91,7 @@ function DocCard({
               <Share2 size={13} />
             </button>
           )}
-          {!isShared && (
+          {doc.permissions.allowedOperations.includes("delete") && (
             <button
               onClick={(e) => onDelete(doc.id, e)}
               title="Delete document"
@@ -138,17 +137,17 @@ function DocRow({
         <span className="text-[10px] font-semibold text-zinc-500 bg-zinc-50 dark:bg-zinc-800 px-2 py-0.5 rounded-md">
           {doc.owner.split(" ")[0]}
         </span>
-        {!isShared && (
-          <>
+        {doc.permissions.allowedOperations.includes("manage-shares") && (
             <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onShare(doc); }} title="Share"
               className="p-1.5 text-zinc-300 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 dark:text-zinc-700 rounded-lg transition-colors">
               <Share2 size={13} />
             </button>
+        )}
+        {doc.permissions.allowedOperations.includes("delete") && (
             <button onClick={(e) => onDelete(doc.id, e)} title="Delete"
               className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 dark:text-zinc-700 rounded-lg transition-colors">
               <Trash2 size={13} />
             </button>
-          </>
         )}
       </div>
     </Link>
@@ -157,53 +156,36 @@ function DocRow({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Home() {
+ const {snapshot,status,notice}=useSession();
+ return <><SessionStatus/>{status==='ready'&&(snapshot?.session?<Dashboard key={sessionKey(snapshot.session)}/>:<PublicEntry/>)}{notice&&status==='ready'&&snapshot?.session&&<Link href="/">Open dashboard</Link>}</>;
+}
+function Dashboard() {
   const { addToast } = useToast();
 
   const [allDocs, setAllDocs]         = useState<Doc[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode]       = useState<"grid" | "list">("grid");
-  const [activeUserIndex, setActiveUserIndex] = useState(0);
   const [isLoading, setIsLoading]     = useState(true);
   const [shareTarget, setShareTarget] = useState<Doc | null>(null);
 
-  const activeUser = USER_PROFILES[activeUserIndex];
-
-  // Persist active user selection
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("active_user_index", activeUserIndex.toString());
-    }
-  }, [activeUserIndex]);
-
-  // Restore from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("active_user_index");
-      if (saved !== null) setActiveUserIndex(parseInt(saved, 10));
-    }
-  }, []);
-
+  const lifetime = useRef<AbortController | null>(null);
   // Fetch all documents
   const fetchDocuments = useCallback(async () => {
     try {
-      const res = await fetch("/api/documents");
-      if (!res.ok) throw new Error(await res.text());
-      setAllDocs(await res.json());
+      const docs = await apiFetch<Doc[]>("/api/documents", { signal: lifetime.current?.signal });
+      if (!lifetime.current?.signal.aborted) setAllDocs(docs);
     } catch {
+      if (lifetime.current?.signal.aborted) return;
       addToast("error", "Could not load documents. Check your connection.");
     } finally {
       setIsLoading(false);
     }
   }, [addToast]);
 
-  useEffect(() => { fetchDocuments(); }, [fetchDocuments]);
+  useEffect(() => { const controller = new AbortController(); lifetime.current = controller; void Promise.resolve().then(() => { if (!controller.signal.aborted) void fetchDocuments(); }); return () => controller.abort(); }, [fetchDocuments]);
 
-  // Split docs into owned vs shared-with-me
-  const ownedDocs  = allDocs.filter((d) => d.owner === activeUser.name);
-  const sharedDocs = allDocs.filter((d) =>
-    d.owner !== activeUser.name &&
-    (d.shares ?? []).some((s) => s.userId === activeUser.id)
-  );
+  const ownedDocs = allDocs.filter(d => d.permissions.role === 'owner');
+  const sharedDocs = allDocs.filter(d => d.permissions.role !== 'owner');
 
   // Search filter applied to active section
   const filteredOwned  = ownedDocs.filter((d)  => d.title.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -212,22 +194,11 @@ export default function Home() {
   // Create document
   const handleCreate = async (templateId: string) => {
     try {
-      const res = await fetch("/api/documents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title:    templateId === "blank" ? "Untitled Document" : "",
-          template: templateId !== "blank" ? templateId : undefined,
-          owner:    activeUser.name,
-        }),
+      const template = TEMPLATES.find(item => item.id === templateId);
+      const newDoc = await apiFetch<Doc>("/api/documents", {
+        method: "POST", body: JSON.stringify({title:templateId==='blank'?'Untitled Document':template?.name??'Untitled Document',content:templateId==='blank'?'':`<h1>${template?.name??'Document'}</h1><p></p>`}),
       });
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: "Unknown error" }));
-        addToast("error", `Could not create document: ${error}`);
-        return;
-      }
-      const newDoc = await res.json();
-      window.location.href = `/documents/${newDoc.id}`;
+      window.location.replace(`/documents/${newDoc.id}`);
     } catch {
       addToast("error", "Network error — document not created.");
     }
@@ -239,11 +210,7 @@ export default function Home() {
     e.stopPropagation();
     if (!window.confirm("Delete this document? This cannot be undone.")) return;
     try {
-      const res = await fetch(`/api/documents/${docId}`, { method: "DELETE" });
-      if (!res.ok) {
-        addToast("error", "Failed to delete document.");
-        return;
-      }
+      await apiFetch(`/api/documents/${docId}`, { method: "DELETE" });
       setAllDocs((prev) => prev.filter((d) => d.id !== docId));
       addToast("success", "Document deleted.");
     } catch {
@@ -268,10 +235,7 @@ export default function Home() {
       );
     }
 
-    const cardProps = (doc: Doc) => {
-      const myShare = (doc.shares ?? []).find((s) => s.userId === activeUser.id);
-      return { myPermission: myShare?.permission as "view" | "edit" | undefined };
-    };
+    const cardProps = (doc: Doc) => ({myPermission:doc.permissions.role==='owner'?undefined:doc.permissions.role==='editor'?'edit' as const:'view' as const});
 
     return viewMode === "grid" ? (
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
@@ -311,34 +275,16 @@ export default function Home() {
               <Sparkles size={20} />
             </div>
             <div>
-              <h1 className="text-md font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Antigravity Docs</h1>
+              <h1 className="text-md font-bold tracking-tight text-zinc-900 dark:text-zinc-50">AI Docs</h1>
               <p className="text-[10px] text-zinc-400 font-medium">LIGHTWEIGHT COLLABORATION</p>
             </div>
           </div>
 
-          {/* User switcher */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 font-medium hidden sm:block">Active user:</span>
-            <div className="flex bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700/50">
-              {USER_PROFILES.map((profile, index) => (
-                <button
-                  key={profile.id}
-                  onClick={() => setActiveUserIndex(index)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all ${
-                    activeUserIndex === index
-                      ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm"
-                      : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-                  }`}
-                >
-                  <div className={`w-2 h-2 rounded-full ${profile.bg}`} />
-                  <span>{profile.name.split(" ")[0]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <AccountMenu/>
         </div>
       </header>
 
+      <SessionBanner/>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col gap-8 w-full">
 
         {/* Templates */}
@@ -425,9 +371,7 @@ export default function Home() {
 
       <footer className="py-5 border-t border-zinc-200 dark:border-zinc-800 text-center select-none">
         <p className="text-[11px] text-zinc-400">
-          Logged in as{" "}
-          <span className="font-semibold text-zinc-700 dark:text-zinc-300">{activeUser.name}</span>
-          {" "}· Antigravity Docs Workspace
+          AI Docs Workspace
         </p>
       </footer>
 
@@ -437,7 +381,7 @@ export default function Home() {
           documentId={shareTarget.id}
           documentTitle={shareTarget.title}
           ownerName={shareTarget.owner}
-          activeUser={activeUser}
+          permissions={shareTarget.permissions}
           onClose={() => { setShareTarget(null); fetchDocuments(); }}
         />
       )}

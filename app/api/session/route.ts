@@ -5,7 +5,7 @@ import { applicationOrigin, createPreAuthSession, getPreAuthBinding, issueCsrf, 
 import { hashLimitKey, requireLimit, trustedClientIp } from '../../../lib/security/rate-limit';
 import { parseJsonBody, sessionSchema } from '../../../lib/security/validation';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
-import { getTemporaryCredential, startTemporarySession, temporarySessionBinding } from '../../../lib/temporary/sessions';
+import { endTemporarySession, getTemporaryCredential, startTemporarySession, temporarySessionBinding } from '../../../lib/temporary/sessions';
 
 const privateHeaders={'Cache-Control':'private, no-store','Vary':'Cookie'};
 function privateResponse(response:Response):Response { for (const [k,v] of Object.entries(privateHeaders)) response.headers.set(k,v); return response; }
@@ -23,9 +23,18 @@ export async function GET(request:Request):Promise<Response> {
       const binding=await getSessionBinding();
       if (user && binding) {
         const client=await createServerSupabaseClient();
-        const {data:profile,error}=await client.from('profiles').select('display_name,email').eq('id',user.userId).single();
+        const {data:profile,error}=await client.from('profiles').select('display_name').eq('id',user.userId).single();
         if (error||!profile) throw new ApiError('STORAGE_UNAVAILABLE','Storage is temporarily unavailable.');
-        return Response.json({serverNow:new Date().toISOString(),session:{kind:'user',userId:user.userId,displayName:profile.display_name,email:profile.email},csrfToken:issueCsrf(binding)},{headers:privateHeaders});
+        const {data:{user:authUser},error:authError}=await client.auth.getUser();
+        if(authError||authUser?.id!==user.userId) throw new ApiError('UNAUTHENTICATED','Sign in to continue.');
+        let guestClaim:{expiresAt:string}|null=null;
+        try {
+          const guest=await getTemporaryCredential('guest');
+          if(guest?.actor.kind==='guest') guestClaim={expiresAt:guest.actor.expiresAt};
+        } catch(error) {
+          if(!(error instanceof ApiError)||!['SESSION_EXPIRED','DEMO_RESET'].includes(error.code)) throw error;
+        }
+        return Response.json({serverNow:new Date().toISOString(),session:{kind:'user',userId:user.userId,displayName:profile.display_name,email:authUser.email??''},guestClaim,csrfToken:issueCsrf(binding)},{headers:privateHeaders});
       }
       // Unverified accounts can still sign out or select a temporary mode safely.
       if (binding) return Response.json({serverNow:new Date().toISOString(),session:null,csrfToken:issueCsrf(binding)},{headers:privateHeaders});
@@ -58,4 +67,15 @@ export async function POST(request:Request):Promise<Response> {
     if(!credential) throw new ApiError('STORAGE_UNAVAILABLE','Storage is temporarily unavailable.');
     return Response.json({serverNow:new Date().toISOString(),session:actor,csrfToken:issueCsrf(await temporarySessionBinding(credential))},{status:201,headers:privateHeaders});
   } catch(error) { return privateResponse(toErrorResponse(error)); }
+}
+
+export async function DELETE(request:Request):Promise<Response> {
+ try {
+  const credential=await getTemporaryCredential();
+  if(!credential) throw new ApiError('UNAUTHENTICATED','Select a session to continue.');
+  requireCsrf(request,await temporarySessionBinding(credential));
+  await requireLimit(hashLimitKey('mutation-session',credential.actor.sessionId),'mutation');
+  await endTemporarySession();
+  return new Response(null,{status:204,headers:privateHeaders});
+ }catch(error){return privateResponse(toErrorResponse(error));}
 }

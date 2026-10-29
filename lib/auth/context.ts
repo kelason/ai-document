@@ -30,3 +30,40 @@ export async function sessionBindingFromClient(client: SupabaseClient): Promise<
 export async function getSessionBinding(): Promise<string | null> {
   return sessionBindingFromClient(await createServerSupabaseClient());
 }
+
+import type { RequestContext } from './types';
+import { readSelectedMode } from './mode';
+import { createPersistentStore } from '../documents/repository';
+import { createRecipientResolver } from '../sharing/recipients';
+import { createTemporaryStore } from '../temporary/repository';
+import { getTemporaryCredential, temporarySessionBinding } from '../temporary/sessions';
+
+/** Internal capabilities are never returned as HTTP JSON. */
+export interface AuthorizedRequestContext extends RequestContext {
+  csrfBinding: string;
+  resolveRecipient?: (documentId:string,email:string)=>Promise<{userId:string}|null>;
+}
+export async function requireContext(request:Request):Promise<AuthorizedRequestContext> {
+  const mode=await readSelectedMode();
+  if(mode==='guest'||mode==='demo') {
+    const credential=await getTemporaryCredential();
+    if(!credential) throw new ApiError('UNAUTHENTICATED','Select a valid session to continue.');
+    let generation=credential.actor.generation;
+    if(!['GET','HEAD'].includes(request.method.toUpperCase())) {
+      const value=request.headers.get('x-workspace-generation')??'';
+      generation=Number(value);
+      if(!/^[1-9]\d*$/.test(value)||!Number.isSafeInteger(generation)||generation>2147483647) throw new ApiError('VALIDATION_ERROR','A valid workspace generation is required.');
+      // NEVER replace the request's expected generation with freshly validated metadata.
+    }
+    return {actor:credential.actor,store:createTemporaryStore(credential,generation),csrfBinding:await temporarySessionBinding(credential)};
+  }
+  const client=await createServerSupabaseClient();
+  const user=await verifiedUserFromClient(client);
+  if(!user) {
+    const binding=await sessionBindingFromClient(client);
+    throw new ApiError(binding?'VERIFICATION_REQUIRED':'UNAUTHENTICATED',binding?'Verify your account to continue.':'Sign in to continue.');
+  }
+  const csrfBinding=await sessionBindingFromClient(client);
+  if(!csrfBinding) throw new ApiError('UNAUTHENTICATED','Sign in to continue.');
+  return {actor:{kind:'user',userId:user.userId},store:createPersistentStore(client),csrfBinding,resolveRecipient:(documentId,email)=>createRecipientResolver(client,documentId)(email)};
+}

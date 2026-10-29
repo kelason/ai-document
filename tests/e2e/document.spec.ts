@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test';
+import {test,expect,enterGuest} from '../helpers/browser';
 
 test.describe('Document Editor Tests', () => {
   test('should create a new blank document and type in it', async ({ page }) => {
-    await page.goto('/');
+    await enterGuest(page);
 
     // Click Blank Document
     await page.getByText('Blank Document').click();
@@ -23,7 +23,9 @@ test.describe('Document Editor Tests', () => {
     await editor.click();
     await editor.type('Hello from automated test!');
     
-    // Verify the text is inside
+    await expect(page.getByText('Saved',{exact:true})).toBeVisible();
+    await page.reload();
+    // Verify persisted content after a real reload
     await expect(editor).toContainText('Hello from automated test!');
   });
 });

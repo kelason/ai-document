@@ -17,7 +17,7 @@ export function authHarness() {
 }
 
 /** Mailpit (current CLI) or Inbucket (legacy CLI), only on the isolated local stack. */
-export async function waitForAuthEmail(email: string, timeoutMs = 10_000): Promise<{ tokenHash: string; type: string }> {
+export async function waitForAuthEmail(email: string, timeoutMs = 10_000): Promise<{ tokenHash: string; type: string; url:string }> {
   const origin = process.env.SUPABASE_TEST_INBOX_URL ?? 'http://127.0.0.1:54324';
   if (!['localhost', '127.0.0.1', '[::1]'].includes(new URL(origin).hostname)) throw new Error('Auth test inbox must be local.');
   const deadline = Date.now() + timeoutMs;
@@ -29,7 +29,7 @@ export async function waitForAuthEmail(email: string, timeoutMs = 10_000): Promi
         const link = new URL(candidate);
         const tokenHash = link.searchParams.get('token_hash') ?? link.searchParams.get('token');
         const type = link.searchParams.get('type');
-        if (tokenHash && type) return { tokenHash, type };
+        if (tokenHash && type) return { tokenHash, type, url:link.toString() };
       }
     }
     await new Promise(resolve => setTimeout(resolve, 100));
