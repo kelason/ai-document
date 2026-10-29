@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
       "./node_modules/mammoth/**/*",
       "./node_modules/yauzl/**/*",
       "./node_modules/fast-xml-parser/**/*",
+      // The import worker loads the sanitizer outside the bundled route.
+      "./node_modules/{sanitize-html,escape-string-regexp,htmlparser2,domelementtype,domhandler,domutils,dom-serializer,entities,is-plain-object,launder,dayjs,parse-srcset,postcss,nanoid,picocolors,source-map-js}/**/*",
     ],
   },
   async redirects() {
