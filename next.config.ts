@@ -3,7 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
-  serverExternalPackages: ["mammoth", "yauzl", "fast-xml-parser", "sanitize-html"],
+  serverExternalPackages: ["mammoth", "yauzl", "fast-xml-parser"],
+  // Compile the CommonJS sanitizer and its ESM parser together. Serverless
+  // runtimes may disable require(ESM), even on Node 24.
+  transpilePackages: ["sanitize-html", "htmlparser2"],
   outputFileTracingIncludes: {
     "/api/documents/*/upload": [
       "./node_modules/mammoth/**/*",

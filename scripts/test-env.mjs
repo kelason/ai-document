@@ -14,7 +14,7 @@ const result=spawnSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-
 if(result.status!==0)throw new Error('Could not create ephemeral local HTTPS certificate');
 cpSync('.next/static','.next/standalone/.next/static',{recursive:true});
 if(existsSync('public'))cpSync('public','.next/standalone/public',{recursive:true});
-const child=spawn(process.execPath,['.next/standalone/server.js'],{env:{...process.env,NODE_ENV:'production',PORT:'3001',HOSTNAME:'127.0.0.1',TRUSTED_CLIENT_IP_HEADER:'x-real-ip'},stdio:'inherit'});
+const child=spawn(process.execPath,['--no-experimental-require-module','.next/standalone/server.js'],{env:{...process.env,NODE_ENV:'production',PORT:'3001',HOSTNAME:'127.0.0.1',TRUSTED_CLIENT_IP_HEADER:'x-real-ip'},stdio:'inherit'});
 const clientSalt=randomBytes(32);
 const server=createServer({cert:readFileSync(cert),key:readFileSync(key)},(req,res)=>{
  const identity=typeof req.headers['x-ai-docs-test-client']==='string'?req.headers['x-ai-docs-test-client']:'default';
