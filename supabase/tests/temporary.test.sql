@@ -60,7 +60,7 @@ SELECT throws_ok($$SELECT public.temporary_create(repeat('c',64),1,'{"title":"Ov
 INSERT INTO temp_test_state VALUES ('bytes-session',public.temporary_start(repeat('e',64),'guest',NULL));
 INSERT INTO temp_test_state VALUES ('bytes-doc',public.temporary_create(repeat('e',64),1,jsonb_build_object('title','Bytes','content',repeat('x',1048576))));
 DO $$ DECLARE i integer; d uuid:=(SELECT (value->>'id')::uuid FROM temp_test_state WHERE name='bytes-doc'); BEGIN
- FOR i IN 1..24 LOOP PERFORM public.temporary_update(repeat('e',64),1,d,jsonb_build_object('content',repeat('x',1048576),'createVersion',true)); END LOOP;
+ FOR i IN 1..23 LOOP PERFORM public.temporary_update(repeat('e',64),1,d,jsonb_build_object('content',repeat('x',1048576),'createVersion',true)); END LOOP;
 END $$;
 SELECT throws_ok(format('SELECT public.temporary_update(%L,1,%L,jsonb_build_object(''content'',repeat(''x'',1048576),''createVersion'',true))',repeat('e',64),(SELECT value->>'id' FROM temp_test_state WHERE name='bytes-doc')),'P0001','QUOTA_EXCEEDED','combined live plus history cap rejects twenty sixth MiB');
 SELECT is((SELECT count(*)::integer FROM temporary_private.history WHERE document_id=(SELECT (value->>'id')::uuid FROM temp_test_state WHERE name='bytes-doc')),24,'failed quota write rolls back its history insertion');

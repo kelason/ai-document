@@ -1,118 +1,72 @@
-# Antigravity Docs
+# AI Docs
 
-A modern, responsive document editor and workspace built with Next.js, React, and Supabase.
+A document workspace built with Next.js, React and Supabase: rich text editing, autosave, revision history, file import and permission-based sharing.
 
-**Live Demo**: [Open the document dashboard](https://ai-document-black.vercel.app/)
+[Open AI Docs](https://ai-document-black.vercel.app/) · [Setup and deployment](docs/deployment/setup.md) · [Security review](docs/security/owasp-review.md)
 
-Choose an existing document or create a blank document from the dashboard. The original demo document is no longer available; its old link redirects to the dashboard.
+## Try the public demos
 
-## Features
+On the welcome screen, choose **Try Alice demo**, **Try Bob demo**, or **Try Charlie demo**. No email or password is required. These are fictional demo personas, and each visitor gets a separate workspace. Switch personas in the workspace header to try owner, editor and viewer permissions.
 
-- **Rich Text Editor**: Create and edit documents with ease.
-- **File Uploads**: Import content from `.txt`, `.md`, and `.docx` files.
-- **Document Sharing**: Share documents with other users with view or edit permissions.
-- **Auto-Saving & Version History**: Changes are saved automatically, with built-in version history.
-- **Supabase Integration**: Data is securely stored using Supabase (with an in-memory fallback for local development).
-- **Automated Testing**: Playwright E2E tests integrated for Vercel via GitHub Actions.
+| Persona | Own sample document | Can edit | Can view |
+| --- | --- | --- | --- |
+| Alice | Community Garden Proposal | Garden Watering Specification | Garden Planning Meeting Notes |
+| Bob | Garden Planning Meeting Notes | Community Garden Proposal | Garden Watering Specification |
+| Charlie | Garden Watering Specification | Garden Planning Meeting Notes | Community Garden Proposal |
 
-## Prerequisites
+The samples include formatted content, revision history and sharing examples. Fixtures live in [supabase/fixtures/demo.json](supabase/fixtures/demo.json). Demo data resets at **12:00 midnight Philippine time (Asia/Manila, UTC+8)**, restoring these samples. Inactive demo sessions expire after 24 hours. Avoid putting personal information into temporary workspaces.
 
-- Node.js (v18 or higher recommended)
-- A [Supabase](https://supabase.com/) account and project (required for production/Vercel deployments)
+Choose **Continue as guest** for an empty workspace. Guest data expires exactly **five hours after creation**. To keep it, create and verify an account or log in before the deadline, then explicitly select **Save guest work**. Logging in alone does not transfer data. A transfer keeps documents and revisions; demo shares, presence and placeholder file links are not copied.
 
-## Setup Instructions
+## Personal accounts
 
-### 1. Clone and Install
+Use **Continue with Google**, or register a display name, email and password. Email registrations require verification before accessing permanent documents. Password reset and verification resend are available from the login pages. Share with the exact email of an existing verified account, choosing view or edit access.
 
-```bash
-git clone <repository-url>
-cd ai-assesment
-npm install
+Account documents persist separately from temporary workspaces. Only owners manage sharing and deletion. Viewers cannot edit or import files. Document URLs require authorization; knowing an ID does not grant access.
+
+## Editor and imports
+
+- Rich text, headings, lists, links and tables; autosave and up to 50 revisions per document.
+- Import `.txt`, `.md` or `.docx`, up to 5 MiB. HTML is sanitized; active content and unsafe archives are rejected.
+- Imports convert file contents into document HTML. **Original binary files are not stored or downloadable.** Attachment entries are metadata placeholders.
+- Temporary workspaces allow 20 documents, 1 MiB of HTML per document and 25 MiB of combined document/revision HTML.
+
+## Local development
+
+Use Node **24.22.1**, Docker and Supabase CLI **2.122.0**.
+
+```sh
+git clone https://github.com/kelason/ai-document.git
+cd ai-document
+npm ci
+supabase start
+cp .env.example .env.local
 ```
 
-### 2. Configure Environment Variables
+Fill in the local URL and keys from `supabase status`; generate independent CSRF and rate-limit secrets. Set `APP_ORIGIN=http://localhost:3000` for `npm run dev`. See [setup](docs/deployment/setup.md) for ingress configuration and local test credentials. Never commit `.env.local` or a service-role key.
 
-Create a `.env.local` file in the root directory and add your Supabase credentials. This step is **required** if you plan to deploy to Vercel.
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-### 3. Setup Supabase Database
-
-Go to your Supabase project's SQL Editor and run the following queries to create the necessary tables and disable RLS (Row Level Security):
-
-```sql
--- Create Documents Table
-CREATE TABLE IF NOT EXISTS documents (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  owner TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Create Document History Table
-CREATE TABLE IF NOT EXISTS document_history (
-  id TEXT PRIMARY KEY,
-  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  updated_by TEXT NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Create Sharing Table
-CREATE TABLE IF NOT EXISTS document_shares (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  user_id TEXT NOT NULL,                     
-  permission TEXT NOT NULL CHECK (permission IN ('view','edit')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Create Attachments Table
-CREATE TABLE IF NOT EXISTS document_attachments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  filename TEXT NOT NULL,
-  mime_type TEXT NOT NULL,
-  size_bytes BIGINT NOT NULL,
-  url TEXT NOT NULL,
-  uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Disable Row Level Security (RLS) for API Access
-ALTER TABLE documents DISABLE ROW LEVEL SECURITY;
-ALTER TABLE document_history DISABLE ROW LEVEL SECURITY;
-ALTER TABLE document_shares DISABLE ROW LEVEL SECURITY;
-ALTER TABLE document_attachments DISABLE ROW LEVEL SECURITY;
-```
-
-### 4. Run Locally
-
-```bash
+```sh
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
-
 ## Testing
 
-This project uses [Playwright](https://playwright.dev/) for end-to-end testing.
-
-To run the automated test suite locally:
-
-```bash
+```sh
+npm run lint
+npm run typecheck
+npm run test:unit
+npm run test:db
+npm run test:integration
+npm run build
 npm run test:e2e
 ```
 
-When you push code to GitHub, GitHub Actions will automatically run the Playwright test suite against your code.
+Database and browser tests use a disposable **local Supabase stack**, including its mail inbox, with no production credentials. Export the environment described in [the test guide](docs/deployment/testing.md). `test:db` resets the local database. Browser tests run the standalone production build behind a local HTTPS proxy; they do not run against the live site.
 
-## Deployment on Vercel
+GitHub Actions runs Vitest, SQL/RLS and Auth integration tests, Playwright, lint, type checks, build, dependency audit, secret scanning and a public-bundle secret check. The complete database/browser sequence repeats after an empty database reset. See [release readiness](docs/deployment/release-readiness.md) for actual verification status and external setup requirements.
 
-1. Push your code to a GitHub repository.
-2. Import the repository in [Vercel](https://vercel.com/).
-3. **Important**: Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to your Vercel project's Environment Variables before deploying. Vercel runs in a serverless environment and relies completely on Supabase for persistent data storage.
+## Security and operations
+
+Authorization is enforced in server routes and database RLS. Guests and demos use separate private tables and opaque HttpOnly cookies. Database deadlines block expired data even before scheduled deletion. Legacy documents remain in an administrator-only archive; demo names never establish account ownership.
+
+Follow the [migration and rollback runbook](docs/deployment/cutover.md) for an existing deployment. Apply the database migrations and app as one coordinated release. Do not use the old schema scripts to disable RLS. Report security issues privately through the repository owner's GitHub profile; never post credentials or private document content in an issue.

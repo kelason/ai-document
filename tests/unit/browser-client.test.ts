@@ -31,3 +31,17 @@ describe('browser request boundary', () => {
   await expect(apiFetch('/api/documents',{method:'POST'})).rejects.toThrow();
  });
 });
+
+it('refreshes a rejected CSRF token once and replays only under the same actor and generation',async()=>{
+ setSessionSnapshot(guest);let writes=0;
+ vi.stubGlobal('fetch',async(path:string)=>{
+  if(path==='/api/session')return Response.json({...guest,csrfToken:'fresh-token'});
+  writes++;return writes===1?Response.json({code:'FORBIDDEN',error:'Expired token',refreshCsrf:true},{status:403}):Response.json({saved:true});
+ });
+ expect(await apiFetch('/api/documents/one',{method:'PATCH',body:'{"content":"draft"}'})).toEqual({saved:true});expect(writes).toBe(2);
+});
+it('never replays a pending mutation into a different generation',async()=>{
+ setSessionSnapshot(guest);let writes=0;
+ vi.stubGlobal('fetch',async(path:string)=>{if(path==='/api/session')return Response.json({...guest,session:{...guest.session,generation:8},csrfToken:'fresh-token'});writes++;return Response.json({code:'FORBIDDEN',refreshCsrf:true},{status:403});});
+ await expect(apiFetch('/api/documents/one',{method:'PATCH',body:'{"content":"old"}'})).rejects.toMatchObject({code:'DEMO_RESET'});expect(writes).toBe(1);
+});

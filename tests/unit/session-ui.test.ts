@@ -52,3 +52,63 @@ it('missing documents show dashboard recovery without stale content',async()=>{
  const params=Promise.resolve({id:'missing'});await render(React.createElement(DocumentPage,{params}));
  expect(container.textContent).toContain('Document not found');expect(container.querySelector('a[href="/"]')?.textContent).toContain('Back to my documents');expect(container.querySelector('[contenteditable]')).toBeNull();
 });
+
+it('marks edits as pending immediately before the autosave debounce',async()=>{
+ vi.stubGlobal('fetch',async(path:string)=>Response.json(path==='/api/session'?{session:guest,csrfToken:'csrf',serverNow:now}:doc));
+ const params=Promise.resolve({id:'doc'});await render(React.createElement(DocumentPage,{params}));
+ const editor=container.querySelector('[contenteditable="true"]')!;
+ await act(async()=>{editor.innerHTML='<p>Changed</p>';editor.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:'Changed'}));});
+ expect(container.textContent).toContain('Saving…');
+ expect(container.textContent).not.toContain('Saved');
+});
+
+it('preserves a pending draft through focus when the authoritative session is unchanged',async()=>{
+ let writes=0;
+ vi.stubGlobal('fetch',async(path:string,init?:RequestInit)=>{if(path==='/api/session')return Response.json({session:guest,csrfToken:'csrf',serverNow:now});if(init?.method==='PATCH')writes++;return Response.json(doc);});
+ await render(React.createElement(DocumentPage,{params:Promise.resolve({id:'doc'})}));const editor=container.querySelector('[contenteditable=true]')!;
+ await act(async()=>{editor.innerHTML='<p>Pending focus draft</p>';editor.dispatchEvent(new InputEvent('input',{bubbles:true}));});
+ await act(async()=>window.dispatchEvent(new Event('focus')));expect(container.textContent).toContain('Pending focus draft');
+ await act(async()=>{await new Promise(resolve=>setTimeout(resolve,1300));});expect(writes).toBe(1);expect(container.textContent).toContain('Pending focus draft');
+});
+
+vi.mock('server-only',()=>({}));
+import {issueCsrf,verifyCsrf} from '../../lib/security/csrf';
+it('keeps a draft and saves after sixteen minutes using refreshed real CSRF',async()=>{
+ vi.stubEnv('CSRF_SECRET','c'.repeat(64));const binding='temporary:review';let gets=0,writes=0;
+ vi.stubGlobal('fetch',async(path:string,init?:RequestInit)=>{
+  if(path==='/api/session'){gets++;return Response.json({session:guest,csrfToken:issueCsrf(binding),serverNow:now});}
+  if(init?.method==='PATCH'){writes++;if(!verifyCsrf(binding,new Headers(init.headers).get('x-csrf-token')??''))return Response.json({code:'FORBIDDEN',error:'A valid CSRF token is required.',refreshCsrf:true},{status:403});}
+  return Response.json(doc);
+ });
+ await render(React.createElement(DocumentPage,{params:Promise.resolve({id:'doc'})}));const clock=vi.spyOn(Date,'now').mockReturnValue(Date.now()+16*60*1000);
+ try{const editor=container.querySelector('[contenteditable=true]')!;await act(async()=>{editor.innerHTML='<p>Draft after sixteen minutes</p>';editor.dispatchEvent(new InputEvent('input',{bubbles:true}));});await act(async()=>{await new Promise(resolve=>setTimeout(resolve,1400));});expect(gets).toBe(2);expect(writes).toBe(2);expect(container.textContent).toContain('Draft after sixteen minutes');expect(container.textContent).not.toContain('Document not found');}finally{clock.mockRestore();vi.unstubAllEnvs();}
+});
+
+import VersionHistory from '../../components/VersionHistory';
+it('allows restoring a seeded old revision even when it is the newest stored revision',async()=>{
+ const version={id:'old',title:'Old title',content:'<p>Old draft</p>',updatedAt:now,updatedBy:'Alice'};
+ await act(async()=>root.render(React.createElement(VersionHistory,{history:[version],onRestore:()=>{},canRestore:true,currentContent:'<p>Current draft</p>',currentTitle:'Current title'})));
+ expect(Array.from(container.querySelectorAll('button')).some(button=>button.textContent?.includes('Restore'))).toBe(true);
+});
+
+import {sessionKey} from '../../lib/http/client';
+it('does not replace a dirty local draft when another tab announces a save',async()=>{
+ let writes=0;vi.stubGlobal('fetch',async(path:string,init?:RequestInit)=>{if(path==='/api/session')return Response.json({session:guest,csrfToken:'csrf',serverNow:now});if(init?.method==='PATCH')writes++;return Response.json(doc);});
+ await render(React.createElement(DocumentPage,{params:Promise.resolve({id:'doc'})}));const editor=container.querySelector('[contenteditable=true]')!;
+ await act(async()=>{editor.innerHTML='<p>Draft while another tab saves</p>';editor.dispatchEvent(new InputEvent('input',{bubbles:true}));});
+ const channel=new BroadcastChannel(`doc-sync-${sessionKey(guest as never)}-doc`);
+ try{await act(async()=>{channel.postMessage({type:'document-changed',source:'other-tab'});await new Promise(resolve=>setTimeout(resolve,250));});expect(container.textContent).toContain('Draft while another tab saves');await act(async()=>{await new Promise(resolve=>setTimeout(resolve,1100));});expect(writes).toBe(1);}finally{channel.close();}
+});
+
+it('serializes autosaves so an older slow request cannot overwrite a newer edit',async()=>{
+ let release!:(value:Response)=>void;const contents:string[]=[];
+ vi.stubGlobal('fetch',async(path:string,init?:RequestInit)=>{
+  if(path==='/api/session')return Response.json({session:guest,csrfToken:'csrf',serverNow:now});
+  if(init?.method==='PATCH'){contents.push(JSON.parse(String(init.body)).content);if(contents.length===1)return new Promise<Response>(resolve=>{release=resolve;});}
+  return Response.json(doc);
+ });
+ await render(React.createElement(DocumentPage,{params:Promise.resolve({id:'doc'})}));const editor=container.querySelector('[contenteditable=true]')!;
+ const edit=async(text:string)=>act(async()=>{editor.innerHTML=`<p>${text}</p>`;editor.dispatchEvent(new InputEvent('input',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,1300));});
+ await edit('First');await edit('Second');expect(contents).toHaveLength(1);
+ await act(async()=>{release(Response.json(doc));await new Promise(resolve=>setTimeout(resolve,20));});expect(contents).toEqual(['<p>First</p>','<p>Second</p>']);expect(container.textContent).toContain('Second');expect(container.textContent).toContain('Saved');
+});

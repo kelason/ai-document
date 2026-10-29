@@ -10,7 +10,7 @@ test.describe('Dashboard Tests', () => {
 
     // Verify templates are visible
     await expect(page.getByText('Blank Document')).toBeVisible();
-    await expect(page.getByText('Meeting Notes')).toBeVisible();
+    await expect(page.getByText('Meeting Notes',{exact:true})).toBeVisible();
     await expect(page.getByText('Project Proposal')).toBeVisible();
   });
 

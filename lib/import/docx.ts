@@ -10,6 +10,9 @@ import { DOCUMENT_ATTRIBUTES, DOCUMENT_TAGS, DOCUMENT_STYLES } from '@/lib/secur
 
 // Keep native dependencies external and traced in next.config for production workers.
 const nativeRequire = createRequire(import.meta.url);
+// Keep resolution a native runtime call. Turbopack rewrites direct literal
+// require.resolve calls to numeric module IDs, which are invalid in a worker.
+const resolveNative = nativeRequire.resolve.bind(nativeRequire);
 const WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads');
 const yauzl = require(workerData.yauzl);
@@ -248,11 +251,11 @@ export async function parseImportInWorker(bytes: Uint8Array, format: 'txt' | 'md
       eval: true,
       workerData: {
         bytes, format,
-        sanitizer: nativeRequire.resolve('sanitize-html'),
+        sanitizer: resolveNative('sanitize-html'),
         policy: { tags: DOCUMENT_TAGS, attributes: DOCUMENT_ATTRIBUTES, styles: Object.fromEntries(Object.entries(DOCUMENT_STYLES).map(([key, rules]) => [key, rules.map(rule => [rule.source, rule.flags])])) },
-        yauzl: nativeRequire.resolve('yauzl'),
-        xml: nativeRequire.resolve('fast-xml-parser'),
-        mammoth: nativeRequire.resolve('mammoth'),
+        yauzl: resolveNative('yauzl'),
+        xml: resolveNative('fast-xml-parser'),
+        mammoth: resolveNative('mammoth'),
       },
       resourceLimits: { maxOldGenerationSizeMb: 128, maxYoungGenerationSizeMb: 16, stackSizeMb: 4 },
     });

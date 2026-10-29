@@ -15,7 +15,7 @@ test('midnight reset restores fixtures and rejects an old generation save',async
  await enterDemo(page);const old=await session(page);const workspace=old.session.workspaceId;expect(workspace).toMatch(/^[a-f0-9-]{36}$/);
  const docs=await page.evaluate(async()=> (await fetch('/api/documents')).json());
  await localSql(`UPDATE temporary_private.workspaces SET reset_at=clock_timestamp() WHERE id='${workspace}';`);
- const status=await page.evaluate(async({doc,csrf,generation})=>(await fetch(`/api/documents/${doc}`,{method:'PATCH',headers:{'content-type':'application/json','x-csrf-token':csrf,'x-workspace-generation':String(generation)},body:JSON.stringify({content:'must not survive'})})).status,{doc:docs[0].id,csrf:old.csrfToken,generation:old.session.generation});
- expect(status).toBe(409);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect.poll(async()=> (await session(page)).session.generation).toBe(old.session.generation+1);
+ const result=await page.evaluate(async({doc,csrf,generation})=>{const response=await fetch(`/api/documents/${doc}`,{method:'PATCH',headers:{'content-type':'application/json','x-csrf-token':csrf,'x-workspace-generation':String(generation)},body:JSON.stringify({content:'must not survive'})});return {status:response.status,body:await response.json()};},{doc:docs[0].id,csrf:old.csrfToken,generation:old.session.generation});
+ expect(result.status,JSON.stringify(result.body)).toBe(409);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect.poll(async()=> (await session(page)).session.generation).toBe(old.session.generation+1);
  const fresh=await page.evaluate(async()=> (await fetch('/api/documents')).json());expect(fresh.some((d:{id:string})=>d.id===docs[0].id)).toBe(false);
 });

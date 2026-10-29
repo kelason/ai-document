@@ -17,7 +17,8 @@ export function SessionProvider({children}:{children:React.ReactNode}) {
  const accept=useCallback((next:SessionSnapshot)=>{previous.current=next;setSessionSnapshot(next);setSnapshot(next);setStatus('ready');setError('');},[]);
  const refresh=useCallback(async ()=>{
   if(transitioning.current)return;
-  const request=++serial.current; setStatus('checking'); clearSessionSnapshot();
+  const request=++serial.current;
+  // Preserve pending editor state while rechecking an unchanged identity.
   try {
    const next=await loadSessionSnapshot(); if(request!==serial.current)return;
    if(next.code==='SESSION_EXPIRED')setNotice('Your guest session has expired.');
@@ -33,6 +34,7 @@ export function SessionProvider({children}:{children:React.ReactNode}) {
   let active=true;void Promise.resolve().then(()=>{if(active)void refresh();});
   const focus=()=>{void refresh();};
   const visible=()=>{if(document.visibilityState==='visible')void refresh();};
+  const refreshTimer=setInterval(focus,10*60*1000);
   window.addEventListener('focus',focus);window.addEventListener('online',focus);document.addEventListener('visibilitychange',visible);
   const remove=onSessionInvalidated(code=>{
    if(!code)return;
@@ -40,7 +42,7 @@ export function SessionProvider({children}:{children:React.ReactNode}) {
    if(code==='DEMO_RESET')setNotice('The demo has reset. Open a fresh document from the dashboard.');
    void refresh().then(()=>{if(code==='DEMO_RESET'&&window.location.pathname.startsWith('/documents/'))window.location.replace('/');});
   });
-  return()=>{active=false;remove();window.removeEventListener('focus',focus);window.removeEventListener('online',focus);document.removeEventListener('visibilitychange',visible);clearSessionSnapshot();};
+  return()=>{active=false;clearInterval(refreshTimer);remove();window.removeEventListener('focus',focus);window.removeEventListener('online',focus);document.removeEventListener('visibilitychange',visible);clearSessionSnapshot();};
  },[refresh]);
  // A browser deadline asks the server to confirm expiry. It never deletes data.
  useEffect(()=>{

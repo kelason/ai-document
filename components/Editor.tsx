@@ -33,6 +33,7 @@ interface ActiveUser {
 interface EditorProps {
   documentId: string;
   syncScope?: string;
+  syncSource?: string;
   onRemoteChange?: () => void;
   initialContent: string;
   activeUser: { id: string; name: string; avatar: string; color: string };
@@ -49,6 +50,7 @@ interface EditorProps {
 export default function Editor({
   documentId,
   syncScope,
+  syncSource,
   onRemoteChange,
   initialContent,
   onContentChange,
@@ -199,13 +201,13 @@ export default function Editor({
     const channel = new BroadcastChannel(`doc-sync-${syncScope}-${documentId}`);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type !== 'document-changed') return;
+      if (event.data?.type !== 'document-changed' || (syncSource && event.data?.source===syncSource)) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => onRemoteChange?.(), 100);
     };
     channel.addEventListener('message', handleMessage);
     return () => { if (timer) clearTimeout(timer); channel.removeEventListener('message', handleMessage); channel.close(); };
-  }, [documentId, syncScope, onRemoteChange]);
+  }, [documentId, syncScope, syncSource, onRemoteChange]);
 
   // Insert helper widgets
   const insertDivider = () => {

@@ -57,7 +57,7 @@ export function verifyCsrf(binding: string, token: string): boolean {
 
 export function requireCsrf(request: Request, binding: string): void {
   requireSameOrigin(request);
-  if (!verifyCsrf(binding, request.headers.get('x-csrf-token') ?? '')) throw new ApiError('FORBIDDEN', 'A valid CSRF token is required.');
+  if (!verifyCsrf(binding, request.headers.get('x-csrf-token') ?? '')) throw new ApiError('FORBIDDEN', 'A valid CSRF token is required.',{csrfRefreshRequired:true});
 }
 
 export function csrfResponse(binding: string): Response {

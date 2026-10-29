@@ -27,6 +27,8 @@ export default function DocumentWorkspace({params}:PageProps){
 }
 function Workspace({id}:{id:string}){
  const {snapshot}=useSession();const session=snapshot!.session!;const scope=sessionKey(session);
+ const [syncSource]=useState(()=>crypto.randomUUID());
+ const dirty=useRef(false);const editRevision=useRef(0);const inFlightWrites=useRef(0);const saveQueue=useRef<Promise<void>>(Promise.resolve());
  const profile=session.kind==='demo'?DEMO_PERSONAS.find(p=>p.persona===session.persona):undefined;
  const activeUser={id:session.kind==='user'?session.userId:session.kind==='demo'?session.persona:session.sessionId,name:session.kind==='user'?session.displayName:profile?.name??'Guest',avatar:profile?.avatar??(session.kind==='user'?session.displayName.slice(0,2).toUpperCase():'G'),color:profile?.color??'#6366f1'};
  const {addToast}=useToast();
@@ -50,14 +52,20 @@ function Workspace({id}:{id:string}){
   finally{if(!signal?.aborted&&request===fetchSequence.current)setIsLoading(false);}
  },[id,applyDocument,cancelPending]);
  useEffect(()=>{const controller=new AbortController();lifetime.current=controller;void Promise.resolve().then(()=>{if(!controller.signal.aborted)void fetchDoc();});return()=>{controller.abort();cancelPending();};},[fetchDoc,cancelPending]);
- const notifySaved=()=>{if(typeof BroadcastChannel!=='undefined'){const channel=new BroadcastChannel(`doc-sync-${scope}-${id}`);channel.postMessage({type:'document-changed'});channel.close();}};
- const save=async(input:{title?:string;content?:string})=>{
-  if(!canEdit||lifetime.current?.signal.aborted)return;setSaveStatus('saving');
-  try{const doc=await apiFetch<DocumentDetail>(`/api/documents/${id}`,{method:'PATCH',body:JSON.stringify(input),signal:lifetime.current?.signal});if(lifetime.current?.signal.aborted)return;setDocHistory(doc.history);setPermissions(doc.permissions);setSaveStatus('saved');notifySaved();}
+ const remoteChange=useCallback(()=>{if(!dirty.current)void fetchDoc();},[fetchDoc]);
+ const notifySaved=()=>{if(typeof BroadcastChannel!=='undefined'){const channel=new BroadcastChannel(`doc-sync-${scope}-${id}`);channel.postMessage({type:'document-changed',source:syncSource});channel.close();}};
+ const save=(input:{title?:string;content?:string})=>{
+  if(!canEdit||lifetime.current?.signal.aborted)return Promise.resolve();const issuedRevision=editRevision.current;inFlightWrites.current++;setSaveStatus('saving');
+  const perform=async()=>{
+  if(lifetime.current?.signal.aborted){inFlightWrites.current--;return;}
+  try{const doc=await apiFetch<DocumentDetail>(`/api/documents/${id}`,{method:'PATCH',body:JSON.stringify(input),signal:lifetime.current?.signal});if(lifetime.current?.signal.aborted)return;setDocHistory(doc.history);setPermissions(doc.permissions);if(editRevision.current===issuedRevision&&inFlightWrites.current===1&&!contentSaveTimeout.current&&!titleSaveTimeout.current){dirty.current=false;setSaveStatus('saved');}notifySaved();}
   catch(error){if(lifetime.current?.signal.aborted)return;if(error instanceof ClientApiError&&[403,404].includes(error.status)){cancelPending();setDocContent('');setDocHistory([]);setRemoteUsers([]);setLoadError('not-found');}setSaveStatus('offline');addToast('error',error instanceof Error?error.message:'Document could not be saved.');}
+  finally{inFlightWrites.current--;}
+  };
+  const queued=saveQueue.current.then(perform);saveQueue.current=queued.catch(()=>undefined);return queued;
  };
- const handleTitleChange=(event:React.ChangeEvent<HTMLInputElement>)=>{if(!canEdit)return;const title=event.target.value;setDocTitle(title);if(titleSaveTimeout.current)clearTimeout(titleSaveTimeout.current);titleSaveTimeout.current=setTimeout(()=>void save({title}),TITLE_SAVE_DEBOUNCE_MS);};
- const handleContentChange=(content:string)=>{if(!canEdit)return;setDocContent(content);if(contentSaveTimeout.current)clearTimeout(contentSaveTimeout.current);contentSaveTimeout.current=setTimeout(()=>void save({content}),CONTENT_SAVE_DEBOUNCE_MS);};
+ const handleTitleChange=(event:React.ChangeEvent<HTMLInputElement>)=>{if(!canEdit)return;dirty.current=true;editRevision.current++;setSaveStatus('saving');const title=event.target.value;setDocTitle(title);if(titleSaveTimeout.current)clearTimeout(titleSaveTimeout.current);titleSaveTimeout.current=setTimeout(()=>{titleSaveTimeout.current=null;void save({title});},TITLE_SAVE_DEBOUNCE_MS);};
+ const handleContentChange=(content:string)=>{if(!canEdit)return;dirty.current=true;editRevision.current++;setSaveStatus('saving');setDocContent(content);if(contentSaveTimeout.current)clearTimeout(contentSaveTimeout.current);contentSaveTimeout.current=setTimeout(()=>{contentSaveTimeout.current=null;void save({content});},CONTENT_SAVE_DEBOUNCE_MS);};
  const handleFileImported=(html:string)=>{if(!permissions.allowedOperations.includes('upload'))return;cancelPending();const content=docContent+html;setDocContent(content);setContentRevision(r=>r+1);void save({content});};
  const handleRestoreVersion=async(versionId:string)=>{
   if(!permissions.allowedOperations.includes('restore'))return;cancelPending();setSaveStatus('saving');
@@ -213,7 +221,7 @@ function Workspace({id}:{id:string}){
         )}
         {showHistory && (
           <aside className="w-64 border-r border-zinc-200 dark:border-zinc-800/80 shrink-0 h-full p-4 overflow-y-auto hidden md:block">
-            <VersionHistory history={docHistory} onRestore={handleRestoreVersion} canRestore={permissions.allowedOperations.includes("restore")} />
+            <VersionHistory currentContent={docContent} currentTitle={docTitle} history={docHistory} onRestore={handleRestoreVersion} canRestore={permissions.allowedOperations.includes("restore")} />
           </aside>
         )}
 
@@ -239,7 +247,8 @@ function Workspace({id}:{id:string}){
               <Editor
                 documentId={id}
                 syncScope={scope}
-                onRemoteChange={fetchDoc}
+                syncSource={syncSource}
+                onRemoteChange={remoteChange}
                 initialContent={docContent}
                 contentRevision={contentRevision}
                 activeUser={activeUser}

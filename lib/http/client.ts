@@ -29,9 +29,13 @@ export function onSessionInvalidated(listener:(code?:ErrorCode)=>void):()=>void 
 const securityErrors=new Set<ErrorCode>(['UNAUTHENTICATED','VERIFICATION_REQUIRED','SESSION_EXPIRED','DEMO_RESET']);
 /** Only local API paths: bound browser CSRF tokens must never follow an external redirect. */
 export async function apiFetch<T=unknown>(path:string, init:RequestInit={}):Promise<T> {
+ return requestApi<T>(path,init,true);
+}
+async function requestApi<T>(path:string,init:RequestInit,mayRefresh:boolean):Promise<T> {
  if (!path.startsWith('/api/')||path.includes('\\')||/[\u0000-\u0020]/.test(path)) throw new Error('Only local API paths are allowed.');
  const url=new URL(path,'https://same-origin.invalid');
  if (url.origin!=='https://same-origin.invalid'||!url.pathname.startsWith('/api/')) throw new Error('Only local API paths are allowed.');
+ const originalKey=sessionKey(snapshot?.session??null);
  const method=(init.method??'GET').toUpperCase();
  const headers=new Headers(init.headers);
  headers.delete('Authorization'); headers.delete('X-CSRF-Token'); headers.delete('X-Workspace-Generation');
@@ -50,8 +54,18 @@ export async function apiFetch<T=unknown>(path:string, init:RequestInit={}):Prom
   const body:unknown=response.status===204?undefined:await response.json();
   if(issuedAt!==revision) throw new DOMException('Session changed.','AbortError');
   if(!response.ok) {
-   const data=body as {code?:ErrorCode;error?:string};
+   const data=body as {code?:ErrorCode;error?:string;refreshCsrf?:boolean};
    const code=data?.code??'STORAGE_UNAVAILABLE';
+   if(response.status===403&&data.refreshCsrf===true&&mayRefresh&&(!init.body||typeof init.body==='string'||init.body instanceof FormData)) {
+    const next=await loadSessionSnapshot();
+    if(issuedAt!==revision)throw new DOMException('Session changed.','AbortError');
+    if(sessionKey(next.session)!==originalKey) {
+     const boundary:ErrorCode=next.code??(next.session&&next.session.kind!=='user'?'DEMO_RESET':'UNAUTHENTICATED');
+     clearSessionSnapshot(boundary);throw new ClientApiError(boundary,'Your session changed. Refresh before continuing.',409);
+    }
+    setSessionSnapshot(next);
+    return requestApi<T>(path,init,false);
+   }
    if(securityErrors.has(code)) clearSessionSnapshot(code);
    throw new ClientApiError(code,data?.error??'The request could not be completed.',response.status);
   }

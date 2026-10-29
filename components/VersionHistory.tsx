@@ -8,9 +8,11 @@ interface VersionHistoryProps {
   history: DocumentVersion[];
   onRestore: (versionId: string) => void;
   canRestore: boolean;
+  currentContent: string;
+  currentTitle: string;
 }
 
-export default function VersionHistory({ history, onRestore, canRestore }: VersionHistoryProps) {
+export default function VersionHistory({ history, onRestore, canRestore, currentContent, currentTitle }: VersionHistoryProps) {
   const sortedHistory = [...history].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
@@ -33,7 +35,8 @@ export default function VersionHistory({ history, onRestore, canRestore }: Versi
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto space-y-3 pr-1 font-sans">
-          {sortedHistory.map((version, index) => {
+          {sortedHistory.map((version) => {
+            const isCurrent=version.content===currentContent&&version.title===currentTitle;
             const date = new Date(version.updatedAt);
             const formattedDate = date.toLocaleDateString(undefined, {
               month: "short",
@@ -50,7 +53,7 @@ export default function VersionHistory({ history, onRestore, canRestore }: Versi
               <div
                 key={version.id}
                 className={`relative p-3 rounded-xl border transition-all ${
-                  index === 0
+                  isCurrent
                     ? "bg-indigo-50/40 border-indigo-100 dark:bg-indigo-950/10 dark:border-indigo-900/40"
                     : "bg-zinc-50/50 border-zinc-100 dark:bg-zinc-800/20 dark:border-zinc-800/60"
                 }`}
@@ -63,7 +66,7 @@ export default function VersionHistory({ history, onRestore, canRestore }: Versi
                       <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">•</span>
                       <span className="text-[11px] text-zinc-500">{formattedTime}</span>
                     </div>
-                    {index === 0 && (
+                    {isCurrent && (
                       <span className="shrink-0 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100/50 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded">
                         Current
                       </span>
@@ -81,7 +84,7 @@ export default function VersionHistory({ history, onRestore, canRestore }: Versi
                     Title: &quot;{version.title}&quot;
                   </div>
 
-                  {index > 0 && canRestore && (
+                  {!isCurrent && canRestore && (
                     <button
                       onClick={() => onRestore(version.id)}
                       className="mt-2 flex items-center justify-center gap-1 w-full py-1 px-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white rounded-lg text-[10px] font-semibold transition-all shadow-sm"

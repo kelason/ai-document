@@ -8,7 +8,8 @@ INSERT INTO auth.users(id,email,email_confirmed_at,raw_user_meta_data) VALUES
  ('84000000-0000-0000-0000-000000000003','claim-unverified@example.test',NULL,'{}');
 SELECT temporary_start(repeat('8',64),'guest',NULL);
 CREATE TEMP TABLE claim_doc AS SELECT temporary_create(repeat('8',64),1,'{"title":"Guest draft","content":"<p>Original</p>"}') AS doc;
-SELECT temporary_update(repeat('8',64),1,(SELECT (doc->>'id')::uuid FROM claim_doc),'{"content":"<p>Latest</p>","createVersion":true}');
+SELECT temporary_update(repeat('8',64),1,(SELECT (doc->>'id')::uuid FROM claim_doc),'{"content":"<p>Latest</p>"}');
+SELECT is((SELECT count(*)::int FROM temporary_private.history WHERE document_id=(SELECT (doc->>'id')::uuid FROM claim_doc)),2,'ordinary autosave creates current history without explicit createVersion');
 SELECT temporary_add_attachment(repeat('8',64),1,(SELECT (doc->>'id')::uuid FROM claim_doc),'{"filename":"test.txt","mimeType":"text/plain","sizeBytes":1,"url":"/attachments/11111111-1111-1111-1111-111111111111"}');
 SELECT temporary_heartbeat(repeat('8',64),1,(SELECT (doc->>'id')::uuid FROM claim_doc),'{"active":true}');
 CREATE TEMP TABLE claim_snapshot AS SELECT prepare_guest_claim('84000000-0000-0000-0000-000000000001',repeat('8',64)) AS value;
@@ -20,7 +21,7 @@ SELECT is((SELECT jsonb_array_length(value->'documentIds') FROM claim_result),1,
 SELECT is((SELECT count(*)::int FROM public.documents WHERE owner_id='84000000-0000-0000-0000-000000000001'),1,'verified user owns copy');
 SELECT is((SELECT count(*)::int FROM public.documents WHERE id=(SELECT (doc->>'id')::uuid FROM claim_doc)),0,'copy uses new identifier');
 SELECT is((SELECT content FROM public.documents WHERE owner_id='84000000-0000-0000-0000-000000000001'),'<p>Latest</p>','copies latest content');
-SELECT is((SELECT count(*)::int FROM public.document_history WHERE updated_by='84000000-0000-0000-0000-000000000001'),1,'history gets new owner identity');
+SELECT is((SELECT count(*)::int FROM public.document_history WHERE updated_by='84000000-0000-0000-0000-000000000001'),2,'history gets new owner identity');
 SELECT is((SELECT count(*)::int FROM public.document_attachments WHERE document_id IN (SELECT id FROM public.documents WHERE owner_id='84000000-0000-0000-0000-000000000001')),0,'placeholder attachments are dropped');
 SELECT is((SELECT count(*)::int FROM public.document_presence WHERE user_id='84000000-0000-0000-0000-000000000001'),0,'presence is dropped');
 SELECT is((SELECT count(*)::int FROM temporary_private.sessions WHERE token_hash=repeat('8',64)),0,'successful transfer removes guest source');

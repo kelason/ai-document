@@ -30,7 +30,7 @@ export class ApiError extends Error {
   constructor(
     readonly code: ErrorCode,
     message: string,
-    readonly options: { retryAfterSeconds?: number } = {},
+    readonly options: { retryAfterSeconds?: number; csrfRefreshRequired?: boolean } = {},
   ) {
     super(message);
     this.name = 'ApiError';
@@ -52,7 +52,7 @@ export function toErrorResponse(error: unknown): Response {
   }
 
   return Response.json(
-    { error: publicError.message, code: publicError.code },
+    { error: publicError.message, code: publicError.code, ...(publicError.code==='FORBIDDEN'&&publicError.options.csrfRefreshRequired?{refreshCsrf:true}:{}) },
     { status: statusByCode[publicError.code], headers },
   );
 }
