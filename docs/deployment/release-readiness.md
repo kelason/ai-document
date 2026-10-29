@@ -27,3 +27,5 @@ Do not merge/deploy partial feature commits or run production migrations as a CI
 Verification: [CI run40847403252](https://github.com/kelason/ai-document/actions/runs/40847403252) checks commit `67e9ba397bbbf6d0fafd88279ba3de29036948ee`. Unit, database-and-browser, secrets, codeql and CodeQL checks passed. Dependency-review remains failed because repository Dependency graph is disabled; this gate was not bypassed. Documentation-only verification updates follow this tested implementation.
 
 The administrator read-only readiness guard and its disabled-RLS/missing-cron negative tests passed against the isolated stack. This does not verify production Google/SMTP/ingress/cron operation or a production backup restore. Those external gates remain open.
+
+A subsequent regression check also preserves complete server-side template content when clicking dashboard cards. The PR checks are the authoritative result for any later commit; the figures above identify the earlier verified implementation rather than claiming an unrun revision passed.

@@ -23,3 +23,8 @@ test.describe('Dashboard Tests', () => {
     await expect(page.getByText('Start a new document')).toBeVisible();
   });
 });
+
+test('meeting template keeps its full agenda and action-item structure',async({page})=>{
+ await enterDemo(page);await page.getByRole('button',{name:'Meeting Notes Use template',exact:true}).click();await expect(page).toHaveURL(/documents\/[a-f0-9-]+/);
+ await expect(page.getByRole('heading',{name:'Agenda',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Action Items',exact:true})).toBeVisible();
+});

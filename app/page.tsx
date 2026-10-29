@@ -194,9 +194,8 @@ function Dashboard() {
   // Create document
   const handleCreate = async (templateId: string) => {
     try {
-      const template = TEMPLATES.find(item => item.id === templateId);
       const newDoc = await apiFetch<Doc>("/api/documents", {
-        method: "POST", body: JSON.stringify({title:templateId==='blank'?'Untitled Document':template?.name??'Untitled Document',content:templateId==='blank'?'':`<h1>${template?.name??'Document'}</h1><p></p>`}),
+        method: "POST", body: JSON.stringify(templateId==='blank'?{template:'blank',title:'Untitled Document'}:{template:templateId}),
       });
       window.location.replace(`/documents/${newDoc.id}`);
     } catch {

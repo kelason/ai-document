@@ -126,3 +126,15 @@ it('removes a revoked document when its next presence request is denied',async()
  });
  await render(React.createElement(DocumentPage,{params:Promise.resolve({id:'doc'})}));expect(container.textContent).toContain('Private guest content');await act(async()=>{await new Promise(resolve=>setTimeout(resolve,1300));});expect(container.textContent).toContain('Document not found');expect(container.textContent).not.toContain('Private guest content');
 });
+
+import Dashboard from '../../app/page';
+it('requests the full server template when a template card is selected',async()=>{
+ let input:Record<string,unknown>|undefined;
+ vi.stubGlobal('fetch',async(path:string,init?:RequestInit)=>{
+  if(path==='/api/session')return Response.json({session:guest,csrfToken:'csrf',serverNow:now});
+  if(init?.method==='POST'){input=JSON.parse(String(init.body));return Response.json({code:'STORAGE_UNAVAILABLE',error:'Test request captured'},{status:503});}
+  return Response.json([]);
+ });
+ await render(React.createElement(Dashboard));const card=Array.from(container.querySelectorAll('button')).find(button=>button.textContent?.includes('Meeting Notes'))!;
+ await act(async()=>card.click());expect(input).toEqual({template:'meeting-notes'});
+});
