@@ -21,6 +21,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: node scripts/check-migration.ts
+      - run: node scripts/build-demo-seed.ts --check
       - run: npm run test:unit
       - run: npm audit --audit-level=high
   database-and-browser:

@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { DemoPersona } from '@/lib/auth/types';
 import type { ErrorCode } from '@/lib/http/errors';
-import { apiFetch, clearSessionSnapshot, loadSessionSnapshot, onSessionInvalidated, setSessionSnapshot, type SessionSnapshot } from '@/lib/http/client';
+import { apiFetch, clearSessionSnapshot, getSessionSnapshot, loadSessionSnapshot, onSessionInvalidated, setSessionSnapshot, type SessionSnapshot } from '@/lib/http/client';
 interface SessionState {
  snapshot:SessionSnapshot|null; status:'checking'|'ready'|'error'; error:string; notice:string;
  refresh:()=>Promise<void>; reportError:(error:string)=>void; suspend:()=>void; start:(kind:'guest'|'demo',persona?:DemoPersona)=>Promise<void>;
@@ -28,7 +28,7 @@ export function SessionProvider({children}:{children:React.ReactNode}) {
    const reset=before?.kind==='demo'&&next.session?.kind==='demo'&&before.workspaceId===next.session.workspaceId&&before.generation!==next.session.generation;
    accept(next);
    if((reset||next.code==='DEMO_RESET')&&window.location.pathname.startsWith('/documents/'))window.location.replace('/');
-  }catch(error){if(request!==serial.current)return;setSnapshot(null);setStatus('error');setError(error instanceof Error?error.message:'Session unavailable.');}
+  }catch(error){if(request!==serial.current)return;if(getSessionSnapshot()?.session){setStatus('ready');}else{setSnapshot(null);setStatus('error');}setError(error instanceof Error?error.message:'Session unavailable.');}
  },[accept]);
  useEffect(()=>{
   let active=true;void Promise.resolve().then(()=>{if(active)void refresh();});

@@ -21,14 +21,14 @@ References: [OWASP ASVS 5.0.0](https://github.com/OWASP/ASVS/tree/v5.0.0/5.0) an
 
 ## Verification record
 
-- Node 24.22.1; Vitest 5.0.5: **224 unit tests passed**, including real sanitizer/import workers and HTTP error/security behavior. ESLint and TypeScript passed.
+- Node 24.22.1; Vitest 5.0.5: **235 unit tests passed**, including real sanitizer/import workers and HTTP error/security behavior. ESLint and TypeScript passed.
 - Next 16.4.3 production standalone build passed. An actual HTTPS response contained the enforced CSP and **12 script tags matching its nonce**. This checks server output; browser execution is separately gated.
 - Public output scan checked **28 build files**, with no server-only service-key/CSRF/rate-secret canary values.
-- Gitleaks **8.30.1**, verified release archive checksum: Git history scan found **no leaks** (24 commits at time of scan). A preliminary working-directory scan flagged generated Next preview/encryption keys and the local ephemeral HTTPS private key under ignored `.next/` and `.test-runtime/`; these are not repository credentials. Final tracked-source/history scan and CI are the authoritative repository scans. No broad secret-rule suppression was added.
+- Gitleaks **8.30.1**, verified release archive checksum: Git history and a tracked-source export found **no leaks**; CI history/source jobs also passed. A preliminary working-directory scan flagged generated Next preview/encryption keys and the local ephemeral HTTPS private key under ignored `.next/` and `.test-runtime/`; these are not repository credentials. Tracked-source/history scans and CI are the authoritative repository scans. No broad secret-rule suppression was added.
 - `npm audit --json`: info 0, low 0, moderate 0, high 0, critical 0. Dependency scans are timestamped evidence, not a permanent safety guarantee.
-- Earlier isolated Supabase CI passed 73 pgTAP assertions and the RLS/migration/rate/Auth integration foundation. Current branch adds expiry/reset/claim/API/browser gates; see release-readiness for the latest result. Embedded PGlite assertions are supplementary, not evidence of PostgREST or independent connection behavior.
+- Isolated Supabase CI on remote290e3ae passed **177 pgTAP assertions and50 integration tests**, including independent-connection claim/cleanup/deadline checks. Final history/readiness changes and browser fixes require the fresh exact-commit CI result; see release-readiness. Embedded PGlite assertions are supplementary, not evidence of PostgREST or independent connection behavior.
 - Local Chromium launch was denied by macOS MachPort permission; Docker daemon was unavailable. These setup failures are **not counted as passing E2E/database tests**. The full isolated workflow runs on GitHub Ubuntu.
-- Static review: ESLint, migration release guard, strict route schemas, service-only grants, secret-value client bundle scan, and manual trust-boundary review. No Semgrep/CodeQL/DAST run is claimed.
+- Static review: ESLint, migration release guard, strict route schemas, service-only grants, secret-value client bundle scan, and manual trust-boundary review. CodeQL security-extended analysis and its CodeQL check passed on remote5b912d2. No Semgrep or DAST run is claimed.
 
 ## Release constraints
 

@@ -112,3 +112,8 @@ it('serializes autosaves so an older slow request cannot overwrite a newer edit'
  await edit('First');await edit('Second');expect(contents).toHaveLength(1);
  await act(async()=>{release(Response.json(doc));await new Promise(resolve=>setTimeout(resolve,20));});expect(contents).toEqual(['<p>First</p>','<p>Second</p>']);expect(container.textContent).toContain('Second');expect(container.textContent).toContain('Saved');
 });
+
+it('keeps the in-memory draft when a background session recheck has a network failure',async()=>{
+ let offline=false;vi.stubGlobal('fetch',async(path:string)=>{if(path==='/api/session'){if(offline)throw new Error('Network unavailable');return Response.json({session:guest,csrfToken:'csrf',serverNow:now});}return Response.json(doc);});
+ await render(React.createElement(DocumentPage,{params:Promise.resolve({id:'doc'})}));const editor=container.querySelector('[contenteditable=true]')!;await act(async()=>{editor.innerHTML='<p>Draft during network failure</p>';editor.dispatchEvent(new InputEvent('input',{bubbles:true}));});offline=true;await act(async()=>window.dispatchEvent(new Event('focus')));expect(container.textContent).toContain('Draft during network failure');expect(container.textContent).toContain('Network unavailable');
+});

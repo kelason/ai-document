@@ -5,14 +5,16 @@ Updated 2026-10-29. **Not deployed to production.** Work is on the [draft PR](ht
 | Gate | Evidence / status |
 | --- | --- |
 | Approved design and implementation plan | Committed under `docs/superpowers/` |
-| Unit / lint / TypeScript | Local: 224 unit tests passed; lint and type checks passed |
+| Unit / lint / TypeScript | Local: 235 unit tests passed; lint and type checks passed |
 | Standalone production build | Passed locally; actual script nonces and security headers inspected |
+| Dependency review | Blocked: enable repository Dependency graph; npm audit separately passes |
+| CodeQL | Security-extended scan and CodeQL check passed on remote5b912d2 |
 | Dependency audit | 2026-10-29: zero reported vulnerabilities |
-| Secret scanning | Gitleaks 8.30.1 history scan clean; final tracked-source/CI scan pending |
+| Secret scanning | Gitleaks 8.30.1 history scan clean; tracked-source export and CI history/source scans clean |
 | Public client secret leakage check | 28 public build files checked; server secret canaries absent |
-| Supabase SQL/RLS/Auth/integration | Earlier foundation CI passed; expanded current run pending |
-| Browser tests, packaged worker, empty-db repeat | Current CI pending; local macOS Chromium launch blocked |
-| Fresh implementation review | Pending |
+| Supabase SQL/RLS/Auth/integration | Current implementation passed 177 pgTAP +50 integration tests; final history/readiness changes require a fresh full run |
+| Browser tests, packaged worker, empty-db repeat | Browser fixes pending fresh CI; local macOS Chromium launch blocked |
+| Fresh implementation review | Three important findings reproduced and fixed with regressions; final tests pending |
 | Google OAuth | Production/staging provider configuration and manual sign-in required |
 | Verified SMTP / confirmation and recovery delivery | Production sender/configuration and real-mailbox smoke tests required |
 | Trusted ingress | Header replacement and direct-origin protection must be checked on actual host |
