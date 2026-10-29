@@ -31,7 +31,7 @@ Account documents persist separately from temporary workspaces. Only owners mana
 - Imports convert file contents into document HTML. **Original binary files are not stored or downloadable.** Attachment entries are metadata placeholders.
 - Temporary workspaces allow 20 documents, 1 MiB of HTML per document and 25 MiB of combined document/revision HTML.
 
-## Local development
+## Local setup
 
 Use Node **24.22.1**, Docker and Supabase CLI **2.122.0**.
 
@@ -43,11 +43,14 @@ supabase start
 cp .env.example .env.local
 ```
 
-Fill in the local URL and keys from `supabase status`; generate independent CSRF and rate-limit secrets. Set `APP_ORIGIN=http://localhost:3000` for `npm run dev`. See [setup](docs/deployment/setup.md) for ingress configuration and local test credentials. Never commit `.env.local` or a service-role key.
+Fill in the local URL and keys from `supabase status`; generate independent CSRF and rate-limit secrets. See [setup](docs/deployment/setup.md) for ingress configuration and local test credentials. The included loopback HTTPS server supplies the trusted ingress needed by request protection. Never commit `.env.local` or a service-role key.
 
 ```sh
-npm run dev
+npm run build
+APP_ORIGIN=https://localhost:3000 node --env-file=.env.local scripts/test-env.mjs
 ```
+
+Open `https://localhost:3000` using the generated local development certificate. For the Next development server (`npm run dev`), configure a trusted local reverse proxy as described in the setup guide. The included HTTPS command runs the production build and needs a rebuild after source changes.
 
 ## Testing
 
