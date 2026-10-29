@@ -19,6 +19,8 @@ jobs:
           node-version: 24.22.1
           cache: npm
       - run: npm ci
+      - name: Smoke-test server sanitizer on the deployment runtime
+        run: node -e "const assert = require('node:assert/strict'); const sanitize = require('sanitize-html'); assert.equal(sanitize('<p>safe</p><script>alert(1)</script>'), '<p>safe</p>'); console.log('Sanitizer runtime smoke passed on', process.version)"
       - run: npm run lint
       - run: npm run typecheck
       - run: node scripts/check-migration.ts
