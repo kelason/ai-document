@@ -12,5 +12,5 @@ it('rejects disabled RLS without retaining the test schema mutation',async()=>{
 });
 it('rejects a missing reset job without retaining the test scheduler mutation',async()=>{
  const guard=readFileSync('scripts/check-deployment.sql','utf8').replace('BEGIN READ ONLY;','').replace('ROLLBACK;','');
- await expect(localSql("BEGIN;DELETE FROM cron.job WHERE jobname='ai-docs-demo-midnight';"+guard+'ROLLBACK;')).rejects.toThrow('Temporary lifecycle schedules');
+ await expect(localSql("BEGIN;SELECT cron.unschedule('ai-docs-demo-midnight');"+guard+'ROLLBACK;')).rejects.toThrow('Temporary lifecycle schedules');
 });

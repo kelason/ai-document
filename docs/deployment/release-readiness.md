@@ -5,7 +5,7 @@ Updated 2026-10-29. **Not deployed to production.** Work is on the [draft PR](ht
 | Gate | Evidence / status |
 | --- | --- |
 | Approved design and implementation plan | Committed under `docs/superpowers/` |
-| Unit / lint / TypeScript | Local: 235 unit tests passed; lint and type checks passed |
+| Unit / lint / TypeScript | Local: 236 unit tests passed; lint and type checks passed |
 | Standalone production build | Passed locally; actual script nonces and security headers inspected |
 | Dependency review | Blocked: enable repository Dependency graph; npm audit separately passes |
 | CodeQL | Security-extended scan and CodeQL check passed on remote5b912d2 |

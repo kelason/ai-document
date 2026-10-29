@@ -74,9 +74,9 @@ function Workspace({id}:{id:string}){
  };
  useEffect(()=>{
   if(isLoading||loadError||!permissions.allowedOperations.includes('presence'))return;
-  const timer=setInterval(async()=>{try{const data=await apiFetch<Presence[]|{activeUsers:Presence[]}>(`/api/documents/${id}/presence`,{method:'POST',body:JSON.stringify({active:true,...(localCursor?{cursorOffset:localCursor.x,cursorY:localCursor.y}:{})}),signal:lifetime.current?.signal});if(!lifetime.current?.signal.aborted)setRemoteUsers(Array.isArray(data)?data:data.activeUsers);}catch{/* Best effort; session failures are handled by the shared client. */}},PRESENCE_HEARTBEAT_MS);
+  const timer=setInterval(async()=>{try{const data=await apiFetch<Presence[]|{activeUsers:Presence[]}>(`/api/documents/${id}/presence`,{method:'POST',body:JSON.stringify({active:true,...(localCursor?{cursorOffset:localCursor.x,cursorY:localCursor.y}:{})}),signal:lifetime.current?.signal});if(!lifetime.current?.signal.aborted)setRemoteUsers(Array.isArray(data)?data:data.activeUsers);}catch(error){if(error instanceof ClientApiError&&[403,404].includes(error.status)){cancelPending();setDocContent('');setDocHistory([]);setRemoteUsers([]);setLoadError('not-found');}}},PRESENCE_HEARTBEAT_MS);
   return()=>clearInterval(timer);
- },[id,isLoading,loadError,localCursor,permissions]);
+ },[id,isLoading,loadError,localCursor,permissions,cancelPending]);
   // ── Word stats ─────────────────────────────────────────────────────────────
   const getDocStats = () => {
     if (typeof window === "undefined" || !docContent) return { words: 0, chars: 0, time: 0 };

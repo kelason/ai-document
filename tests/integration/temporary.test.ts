@@ -1,5 +1,6 @@
+vi.mock('server-only',()=>({}));
 import { createHash, randomBytes } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { integrationClients, seedVerifiedUser } from '../helpers/supabase';
 
 /** Never falls back to remote credentials or silently skips an unavailable stack. */
@@ -73,4 +74,15 @@ describe('temporary workspace authorization', () => {
     } finally { await clients.admin.auth.admin.deleteUser(user.id); }
   });
 
+});
+
+it('opens every seeded demo through the strict application UUID contract',async()=>{
+ const clients=integrationClients();const hash=createHash('sha256').update(randomBytes(32)).digest('hex');
+ const {createTemporaryStore}=await import('../../lib/temporary/repository');
+ const {z}=await import('zod');
+ try{const start=await clients.admin.rpc('temporary_start',{p_token_hash:hash,p_kind:'demo',p_persona:'alice'});expect(start.error).toBeNull();
+ const store=createTemporaryStore({tokenHash:hash,actor:start.data} as Parameters<typeof createTemporaryStore>[0],1);
+ const docs=await store.list();expect(docs).toHaveLength(3);
+ for(const doc of docs){expect(z.uuid().safeParse(doc.id).success).toBe(true);const detail=await store.get(doc.id);for(const revision of detail.history)expect(z.uuid().safeParse(revision.id).success).toBe(true);for(const share of detail.shares)expect(z.uuid().safeParse(share.id).success).toBe(true);}
+ }finally{await clients.admin.rpc('temporary_end',{p_token_hash:hash});}
 });

@@ -21,7 +21,7 @@ References: [OWASP ASVS 5.0.0](https://github.com/OWASP/ASVS/tree/v5.0.0/5.0) an
 
 ## Verification record
 
-- Node 24.22.1; Vitest 5.0.5: **235 unit tests passed**, including real sanitizer/import workers and HTTP error/security behavior. ESLint and TypeScript passed.
+- Node 24.22.1; Vitest 5.0.5: **236 unit tests passed**, including real sanitizer/import workers and HTTP error/security behavior. ESLint and TypeScript passed.
 - Next 16.4.3 production standalone build passed. An actual HTTPS response contained the enforced CSP and **12 script tags matching its nonce**. This checks server output; browser execution is separately gated.
 - Public output scan checked **28 build files**, with no server-only service-key/CSRF/rate-secret canary values.
 - Gitleaks **8.30.1**, verified release archive checksum: Git history and a tracked-source export found **no leaks**; CI history/source jobs also passed. A preliminary working-directory scan flagged generated Next preview/encryption keys and the local ephemeral HTTPS private key under ignored `.next/` and `.test-runtime/`; these are not repository credentials. Tracked-source/history scans and CI are the authoritative repository scans. No broad secret-rule suppression was added.

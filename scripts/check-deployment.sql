@@ -5,7 +5,7 @@ DO $check$
 DECLARE role_name text; table_name text; schema_name text; n integer;
 BEGIN
  IF to_regclass('supabase_migrations.schema_migrations') IS NULL THEN RAISE EXCEPTION 'Migration registry is missing'; END IF;
- IF NOT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version='202610270009') THEN RAISE EXCEPTION 'Required migration0009 is missing'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version='202610270010') THEN RAISE EXCEPTION 'Required migration0010 is missing'; END IF;
  IF to_regclass('legacy_archive.migration_log') IS NULL THEN RAISE EXCEPTION 'Legacy archive migration is missing'; END IF;
  IF NOT EXISTS(SELECT 1 FROM legacy_archive.migration_log WHERE migration_id='202610270001') THEN RAISE EXCEPTION 'Legacy archive migration record is missing'; END IF;
  FOREACH schema_name IN ARRAY ARRAY['legacy_archive','temporary_private'] LOOP

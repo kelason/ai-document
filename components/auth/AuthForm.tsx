@@ -9,7 +9,7 @@ import { getSessionSnapshot, setSessionSnapshot, clearSessionSnapshot } from '@/
 export type AuthFormKind='login'|'signup'|'verify-email'|'forgot-password'|'reset-password';
 const titles:Record<AuthFormKind,string>={login:'Log in to AI Docs',signup:'Create your account','verify-email':'Verify your email','forgot-password':'Reset your password','reset-password':'Choose a new password'};
 export default function AuthForm({kind}:{kind:AuthFormKind}){
- const {status,snapshot}=useSession();
+ const {status,snapshot,refresh}=useSession();
  const rememberToken=(token:string)=>{const current=getSessionSnapshot()??snapshot;if(current&&!current.session)setSessionSnapshot({...current,csrfToken:token});setCsrfToken(token);};
  const [csrfToken,setCsrfToken]=useState('');const [error,setError]=useState('');const [message,setMessage]=useState('');const [returnTo,setReturnTo]=useState('/');
  const [pending,startTransition]=useTransition();
@@ -31,6 +31,7 @@ export default function AuthForm({kind}:{kind:AuthFormKind}){
     if(!result.ok){setError(result.error);if(result.code==='VERIFICATION_REQUIRED')window.location.replace('/verify-email');return;}
     clearSessionSnapshot();
     if(kind==='login'){window.location.assign(result.redirectTo??'/');return;}
+    await refresh();
     if(kind==='signup'){setMessage('Check your inbox to verify your email before opening your permanent workspace.');}
     else setMessage(result.message??'Your request was received.');
     const token=await getAuthCsrfToken();if(token.ok)rememberToken(token.csrfToken);

@@ -8,6 +8,8 @@ test('signup verifies in another tab, explicitly saves guest work, then supports
   await page.getByLabel('Document title').fill('Keep this guest draft');await expect(page.getByText('Saved',{exact:true})).toBeVisible();
   await page.goto('/signup?next=%2F%3Ffrom%3Demail');await page.getByLabel('Display name').fill('Browser account');await page.getByLabel('Email address').fill(email);await page.getByLabel('Password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Create account',exact:true}).click();await expect(page.getByText('Check your inbox to verify your email before opening your permanent workspace.')).toBeVisible();
+  await page.getByRole('link',{name:'AI Docs',exact:true}).click();await expect(page.getByText('Keep this guest draft',{exact:true})).toBeVisible();
+  await page.getByText('Blank Document',{exact:true}).click();await expect(page).toHaveURL(/documents\/[a-f0-9-]+/);
   const emailLink=await waitForAuthEmail(email);const second=await context.newPage();await second.goto(emailLink.url);await expect(second).toHaveURL('/?from=email');
   const identity=await second.evaluate(async()=> (await fetch('/api/session')).json());userId=identity.session.userId;expect(identity.session.kind).toBe('user');
   // Login/confirmation has not silently claimed the guest source.

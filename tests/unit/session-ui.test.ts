@@ -117,3 +117,12 @@ it('keeps the in-memory draft when a background session recheck has a network fa
  let offline=false;vi.stubGlobal('fetch',async(path:string)=>{if(path==='/api/session'){if(offline)throw new Error('Network unavailable');return Response.json({session:guest,csrfToken:'csrf',serverNow:now});}return Response.json(doc);});
  await render(React.createElement(DocumentPage,{params:Promise.resolve({id:'doc'})}));const editor=container.querySelector('[contenteditable=true]')!;await act(async()=>{editor.innerHTML='<p>Draft during network failure</p>';editor.dispatchEvent(new InputEvent('input',{bubbles:true}));});offline=true;await act(async()=>window.dispatchEvent(new Event('focus')));expect(container.textContent).toContain('Draft during network failure');expect(container.textContent).toContain('Network unavailable');
 });
+
+it('removes a revoked document when its next presence request is denied',async()=>{
+ vi.stubGlobal('fetch',async(path:string)=>{
+  if(path==='/api/session')return Response.json({session:user,csrfToken:'csrf',serverNow:now});
+  if(path.endsWith('/presence'))return Response.json({code:'NOT_FOUND',error:'Document not found.'},{status:404});
+  return Response.json({...doc,permissions:{role:'viewer',allowedOperations:['read','presence']}});
+ });
+ await render(React.createElement(DocumentPage,{params:Promise.resolve({id:'doc'})}));expect(container.textContent).toContain('Private guest content');await act(async()=>{await new Promise(resolve=>setTimeout(resolve,1300));});expect(container.textContent).toContain('Document not found');expect(container.textContent).not.toContain('Private guest content');
+});
