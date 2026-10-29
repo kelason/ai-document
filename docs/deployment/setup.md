@@ -12,7 +12,7 @@ Development uses `APP_ORIGIN=http://localhost:3000`. Production-mode browser tes
 
 ## Production environment
 
-`package.json` pins Node `24.x` for Vercel builds and functions, matching the Node 24 CI runtime. Keep this declaration: `sanitize-html` requires modern Node support for loading its ESM parser from CommonJS; older Node runtimes can build successfully but fail when a server route loads.
+`package.json` pins Node `24.x` for Vercel builds and functions, matching the Node 24 CI runtime. Keep this declaration to satisfy dependency engine requirements. `next.config.ts` also bundles `sanitize-html` and `htmlparser2` together: serverless runtimes can disable CommonJS `require(ESM)` even on Node 24. The isolated import worker explicitly enables that Node capability for its external sanitizer dependency, and its files are included in the deployment trace. Browser CI starts the actual production server with `--no-experimental-require-module` to catch this deployment restriction.
 
 Configure in the hosting provider's encrypted environment settings:
 

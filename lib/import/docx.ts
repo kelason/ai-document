@@ -249,6 +249,9 @@ export async function parseImportInWorker(bytes: Uint8Array, format: 'txt' | 'md
     let settled = false;
     const worker = new Worker(WORKER_SOURCE, {
       eval: true,
+      // Lambda disables require(ESM) by default even on Node 24. The isolated
+      // worker needs it for sanitize-html's ESM parser; retain its timeout.
+      execArgv: ['--experimental-require-module'],
       workerData: {
         bytes, format,
         sanitizer: resolveNative('sanitize-html'),
